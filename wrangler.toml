@@ -1,0 +1,14 @@
+name = "anki-interview-app"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "anki-interview-db"
+database_id = "3d697f9b-2f45-4b63-9907-fc3f26c1595c"
+migrations_dir = "db/migrations"
+
+[env.production]
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "anki-interview-db-prod"
+database_id = "5dbc09cb-a3c6-4f2e-b4aa-cef932a2d765"
