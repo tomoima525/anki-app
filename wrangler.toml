@@ -1,0 +1,14 @@
+name = "anki-interview-app"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "anki-interview-db"
+database_id = "<will-be-generated>"
+migrations_dir = "db/migrations"
+
+[env.production]
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "anki-interview-db-prod"
+database_id = "<will-be-generated>"
