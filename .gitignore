@@ -10,6 +10,15 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
+# Frontend specific
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
+# Backend specific
+backend/.wrangler/
+backend/.dev.vars
+
 # Cloudflare Wrangler local state
 .wrangler/
 
@@ -19,6 +28,7 @@ build/
 .parcel-cache/
 .turbo/
 .cache/
+.next/
 
 # Logs
 logs/

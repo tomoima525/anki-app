@@ -1,0 +1,22 @@
+{
+  "name": "anki-interview-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend API for Anki Interview App - Cloudflare Workers + D1",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply anki-interview-db --local",
+    "db:migrate:prod": "wrangler d1 migrations apply anki-interview-db-prod --remote",
+    "db:seed": "wrangler d1 execute anki-interview-db --local --file=./db/seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^3.0.0"
+  }
+}
