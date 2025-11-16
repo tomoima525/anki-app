@@ -5,31 +5,37 @@
 The following database infrastructure has been set up:
 
 ### 1. Database Schema (✓)
+
 - **File**: `db/schema.sql`
 - Contains questions and answer_logs tables with proper constraints
 - Includes performance indexes for common queries
 
 ### 2. Migration File (✓)
+
 - **File**: `db/migrations/0001_initial_schema.sql`
 - Idempotent migration using IF NOT EXISTS
 - Ready to be applied to D1 database
 
 ### 3. Wrangler Configuration (✓)
+
 - **File**: `wrangler.toml`
 - Configured for both development and production environments
 - Database IDs marked as placeholders (to be generated)
 
 ### 4. TypeScript Types (✓)
+
 - **File**: `src/types/database.ts`
 - Type-safe interfaces for Question and AnswerLog
 - Includes Difficulty type and QuestionWithLogs interface
 
 ### 5. Database Utilities (✓)
+
 - **File**: `src/lib/db.ts`
 - generateQuestionId() - Creates SHA256 hash for question IDs
 - getDB() - Helper to access D1 database binding
 
 ### 6. Development Tools (✓)
+
 - **File**: `db/seed.sql` - Sample data for development
 - **File**: `db/verification_queries.sql` - Manual testing queries
 
@@ -86,28 +92,28 @@ database_id = "YOUR-PRODUCTION-DATABASE-ID"  # Replace this
 
 ```bash
 # Apply to local database
-npx wrangler d1 migrations apply anki-interview-db --local
+npx wrangler d1 migrations apply DB --local
 
 # Verify tables were created
-npx wrangler d1 execute anki-interview-db --local \
+npx wrangler d1 execute DB --local \
   --command "SELECT name FROM sqlite_master WHERE type='table';"
 
 # Apply to production (when ready)
-npx wrangler d1 migrations apply anki-interview-db-prod --remote
+npx wrangler d1 migrations apply DB --remote
 ```
 
 ### 5. Optional: Load Seed Data
 
 ```bash
 # Load sample data for development
-npx wrangler d1 execute anki-interview-db --local --file=./db/seed.sql
+npx wrangler d1 execute DB --local --file=./db/seed.sql
 ```
 
 ### 6. Run Verification Queries
 
 ```bash
 # Test the database setup
-npx wrangler d1 execute anki-interview-db --local --file=./db/verification_queries.sql
+npx wrangler d1 execute DB --local --file=./db/verification_queries.sql
 ```
 
 ## Project Structure

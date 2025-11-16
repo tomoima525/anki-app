@@ -1,0 +1,34 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment files
+.env
+.env.*.local
+
+# Cloudflare Wrangler local state
+.wrangler/
+
+# Build artifacts / bundles
+dist/
+build/
+.parcel-cache/
+.turbo/
+.cache/
+
+# Logs
+logs/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+
