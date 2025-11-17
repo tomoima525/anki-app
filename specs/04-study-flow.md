@@ -3,42 +3,62 @@
 ## Overview
 Implement the core flashcard study experience: display random questions, reveal answers, collect difficulty ratings, and log results.
 
+## Architecture
+This is a monorepo with separate frontend and backend:
+- **Frontend**: Next.js 15 (App Router) on Cloudflare Pages - UI and authentication
+- **Backend**: Cloudflare Workers with Hono framework - API endpoints and D1 database access
+- **Database**: D1 (SQLite) bound to backend Workers
+
 ## Prerequisites
-- Database setup completed
-- Authentication implemented
-- Questions synced to database
+- Database setup completed (D1 bound to backend)
+- Authentication implemented (frontend)
+- Questions synced to database (backend GitHub sync)
 
 ## User Flow
 
-1. User navigates to `/study`
-2. System shows a random question
-3. User clicks "Show Answer"
-4. System reveals the answer
-5. User clicks difficulty: Easy, Medium, or Hard
-6. System logs the response and updates aggregates
-7. System loads next question
-8. Repeat
+1. User navigates to `/study` (frontend)
+2. Frontend calls backend API to get random question
+3. System shows the question
+4. User clicks "Show Answer"
+5. Frontend calls backend API to get full question with answer
+6. System reveals the answer
+7. User clicks difficulty: Easy, Medium, or Hard
+8. Frontend submits difficulty to backend API
+9. Backend logs the response and updates aggregates
+10. System loads next question
+11. Repeat
 
 ## Implementation Tasks
 
-### 1. API Endpoints
+### 1. Backend API Endpoints (Hono)
+
+All API endpoints are implemented in the backend using Hono framework.
+
+**Backend Location:** `/backend/src/index.ts`
 
 #### 1.1 Get next question endpoint
-**Location:** `/src/app/api/study/next/route.ts`
+**Route:** `POST /api/study/next`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
-import { Question } from '@/types/database';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 
-export const runtime = 'edge';
+type Bindings = {
+  DB: D1Database;
+};
 
-export async function POST() {
+const app = new Hono<{ Bindings: Bindings }>();
+
+// Enable CORS for frontend
+app.use('/*', cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+}));
+
+// Study endpoints
+app.post('/api/study/next', async (c) => {
   try {
-    await requireSession();
-
-    const db = getDB();
+    const db = c.env.DB;
 
     // For v1: simple random selection
     // Future: weight by last_answered_at or difficulty
@@ -49,85 +69,64 @@ export async function POST() {
          ORDER BY RANDOM()
          LIMIT 1`
       )
-      .first<Pick<Question, 'id' | 'question_text' | 'source'>>();
+      .first<{ id: string; question_text: string; source: string }>();
 
     if (!question) {
-      return NextResponse.json(
+      return c.json(
         { error: 'No questions available. Please sync questions first.' },
-        { status: 404 }
+        404
       );
     }
 
-    return NextResponse.json({
+    return c.json({
       id: question.id,
       question: question.question_text,
       source: question.source,
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     console.error('Get next question error:', error);
-    return NextResponse.json(
+    return c.json(
       { error: 'Failed to get next question' },
-      { status: 500 }
+      500
     );
   }
-}
+});
+
+export default app;
 ```
 
 **Acceptance Criteria:**
 - [ ] Returns random question
 - [ ] Only returns question text (not answer)
-- [ ] Requires authentication
 - [ ] Handles empty database gracefully
 - [ ] Returns question ID for subsequent answer submission
+- [ ] CORS configured for frontend access
 
 **Future enhancements:**
+- [ ] Add authentication middleware (verify JWT from frontend)
 - [ ] Weight selection by last_answered_at (prioritize older questions)
 - [ ] Weight by difficulty (prioritize harder questions)
 - [ ] Exclude recently answered questions
 
 #### 1.2 Submit answer endpoint
-**Location:** `/src/app/api/study/[id]/answer/route.ts`
+**Route:** `POST /api/study/:id/answer`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
-import { Difficulty } from '@/types/database';
-
-export const runtime = 'edge';
-
-interface AnswerRequest {
-  difficulty: Difficulty;
-}
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+app.post('/api/study/:id/answer', async (c) => {
   try {
-    await requireSession();
-
-    const { id } = params;
-    const body = await request.json() as AnswerRequest;
+    const id = c.req.param('id');
+    const body = await c.req.json<{ difficulty: string }>();
     const { difficulty } = body;
 
     // Validate difficulty
     if (!['easy', 'medium', 'hard'].includes(difficulty)) {
-      return NextResponse.json(
+      return c.json(
         { error: 'Invalid difficulty value' },
-        { status: 400 }
+        400
       );
     }
 
-    const db = getDB();
+    const db = c.env.DB;
     const now = new Date().toISOString();
 
     // Verify question exists
@@ -137,9 +136,9 @@ export async function POST(
       .first();
 
     if (!question) {
-      return NextResponse.json(
+      return c.json(
         { error: 'Question not found' },
-        { status: 404 }
+        404
       );
     }
 
@@ -161,56 +160,38 @@ export async function POST(
       ).bind(now, difficulty, id),
     ]);
 
-    return NextResponse.json({
+    return c.json({
       success: true,
       message: 'Answer recorded',
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     console.error('Submit answer error:', error);
-    return NextResponse.json(
+    return c.json(
       { error: 'Failed to submit answer' },
-      { status: 500 }
+      500
     );
   }
-}
+});
 ```
 
 **Acceptance Criteria:**
 - [ ] Validates difficulty value
 - [ ] Verifies question exists
 - [ ] Inserts into answer_logs
-- [ ] Updates question aggregates atomically
-- [ ] Requires authentication
+- [ ] Updates question aggregates atomically (D1 batch)
 - [ ] Returns success response
 
+**Future enhancements:**
+- [ ] Add authentication middleware
+
 #### 1.3 Get question with answer endpoint
-**Location:** `/src/app/api/study/[id]/route.ts`
+**Route:** `GET /api/study/:id`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
-import { Question } from '@/types/database';
-
-export const runtime = 'edge';
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+app.get('/api/study/:id', async (c) => {
   try {
-    await requireSession();
-
-    const { id } = params;
-    const db = getDB();
+    const id = c.req.param('id');
+    const db = c.env.DB;
 
     const question = await db
       .prepare(
@@ -219,48 +200,49 @@ export async function GET(
          WHERE id = ?`
       )
       .bind(id)
-      .first<Pick<Question, 'id' | 'question_text' | 'answer_text' | 'source'>>();
+      .first<{
+        id: string;
+        question_text: string;
+        answer_text: string;
+        source: string;
+      }>();
 
     if (!question) {
-      return NextResponse.json(
+      return c.json(
         { error: 'Question not found' },
-        { status: 404 }
+        404
       );
     }
 
-    return NextResponse.json({
+    return c.json({
       id: question.id,
       question: question.question_text,
       answer: question.answer_text,
       source: question.source,
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     console.error('Get question error:', error);
-    return NextResponse.json(
+    return c.json(
       { error: 'Failed to get question' },
-      { status: 500 }
+      500
     );
   }
-}
+});
 ```
 
 **Acceptance Criteria:**
 - [ ] Returns full question with answer
 - [ ] Used for "Show Answer" functionality
-- [ ] Requires authentication
 
-### 2. Study Page UI
+**Future enhancements:**
+- [ ] Add authentication middleware
+
+### 2. Frontend Study Page UI
 
 #### 2.1 Create study page
-**Location:** `/src/app/study/page.tsx`
+**Location:** `/frontend/src/app/study/page.tsx`
+
+**Note:** Update API calls to point to backend Worker URL (configured via environment variable)
 
 ```typescript
 'use client';
@@ -295,8 +277,11 @@ export default function StudyPage() {
     setShowAnswer(false);
 
     try {
-      const response = await fetch('/api/study/next', {
+      // Call backend API (configure BACKEND_URL in .env)
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const response = await fetch(`${backendUrl}/api/study/next`, {
         method: 'POST',
+        credentials: 'include', // Send cookies for auth
       });
 
       if (!response.ok) {
@@ -322,7 +307,10 @@ export default function StudyPage() {
     if (!question) return;
 
     try {
-      const response = await fetch(`/api/study/${question.id}`);
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const response = await fetch(`${backendUrl}/api/study/${question.id}`, {
+        credentials: 'include',
+      });
 
       if (!response.ok) {
         throw new Error('Failed to load answer');
@@ -344,9 +332,11 @@ export default function StudyPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/study/${question.id}/answer`, {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const response = await fetch(`${backendUrl}/api/study/${question.id}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ difficulty }),
       });
 
@@ -498,7 +488,16 @@ export default function StudyPage() {
 - [ ] Disabled state prevents double-submission
 - [ ] Navigation to other pages
 
-#### 2.2 Add keyboard shortcuts (enhancement)
+#### 2.2 Environment Configuration
+**Location:** `/frontend/.env.local`
+
+```bash
+# Backend API URL
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8787  # Development
+# NEXT_PUBLIC_BACKEND_URL=https://your-worker.workers.dev  # Production
+```
+
+#### 2.3 Add keyboard shortcuts (enhancement)
 **Location:** Add to study page
 
 ```typescript
@@ -534,7 +533,7 @@ useEffect(() => {
 ### 3. Study Statistics Component (Optional)
 
 #### 3.1 Create session stats
-**Location:** `/src/components/StudyStats.tsx`
+**Location:** `/frontend/src/components/StudyStats.tsx`
 
 ```typescript
 'use client';
@@ -622,13 +621,59 @@ export default function StudyStats() {
 import StudyStats from '@/components/StudyStats';
 ```
 
-### 4. Testing
+### 4. Deployment Configuration
 
-#### 4.1 Manual testing checklist
+#### 4.1 Backend Wrangler Configuration
+**Location:** `/backend/wrangler.toml`
+
+Ensure D1 binding is configured:
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "anki-interview-db"
+database_id = "your-database-id"
+
+[env.production.d1_databases]
+binding = "DB"
+database_name = "anki-interview-db-prod"
+database_id = "your-prod-database-id"
+```
+
+#### 4.2 Frontend Environment Variables
+**Location:** `/frontend/.env.production`
+
+```bash
+NEXT_PUBLIC_BACKEND_URL=https://your-worker.workers.dev
+```
+
+### 5. Testing
+
+#### 5.1 Local Development
+
+1. Start backend:
+   ```bash
+   cd backend
+   pnpm dev  # Runs on http://localhost:8787
+   ```
+
+2. Start frontend:
+   ```bash
+   cd frontend
+   pnpm dev  # Runs on http://localhost:3000
+   ```
+
+3. Ensure questions are synced:
+   ```bash
+   cd backend
+   pnpm sync
+   ```
+
+#### 5.2 Manual testing checklist
 
 **Happy path:**
-- [ ] Navigate to /study
-- [ ] Question loads automatically
+- [ ] Backend and frontend both running
+- [ ] Navigate to /study on frontend
+- [ ] Question loads automatically from backend
 - [ ] Only question text is visible
 - [ ] Click "Show Answer" → answer appears
 - [ ] Click "Easy" → next question loads
@@ -637,12 +682,19 @@ import StudyStats from '@/components/StudyStats';
 - [ ] Can complete multiple questions in sequence
 
 **Edge cases:**
+- [ ] Backend not running → shows connection error
 - [ ] No questions in database → shows helpful error
 - [ ] Network error → shows error message
 - [ ] Invalid question ID → handles gracefully
 - [ ] Rapid clicking difficulty buttons → prevents double-submit
+- [ ] CORS errors → verify CORS configuration in backend
 
 **Database verification:**
+- [ ] Use Wrangler to query D1:
+  ```bash
+  cd backend
+  wrangler d1 execute anki-interview-db --local --command "SELECT * FROM answer_logs ORDER BY answered_at DESC LIMIT 5"
+  ```
 - [ ] Check answer_logs table has new entries
 - [ ] Verify timestamps are correct
 - [ ] Verify difficulty values recorded
@@ -650,51 +702,76 @@ import StudyStats from '@/components/StudyStats';
 - [ ] Check questions.last_difficulty updated
 - [ ] Check questions.answer_count incremented
 
-#### 4.2 SQL verification queries
+#### 5.3 SQL verification queries
 
-```sql
--- Check recent answer logs
-SELECT
-  al.id,
-  q.question_text,
-  al.difficulty,
-  al.answered_at
-FROM answer_logs al
-JOIN questions q ON al.question_id = q.id
-ORDER BY al.answered_at DESC
-LIMIT 10;
+Run these via Wrangler CLI:
 
--- Check question statistics
-SELECT
-  id,
-  question_text,
-  last_difficulty,
-  last_answered_at,
-  answer_count
-FROM questions
-WHERE answer_count > 0
-ORDER BY last_answered_at DESC
-LIMIT 10;
+```bash
+# Check recent answer logs
+wrangler d1 execute anki-interview-db --local --command \
+  "SELECT al.id, q.question_text, al.difficulty, al.answered_at
+   FROM answer_logs al
+   JOIN questions q ON al.question_id = q.id
+   ORDER BY al.answered_at DESC
+   LIMIT 10"
 
--- Difficulty distribution
-SELECT
-  difficulty,
-  COUNT(*) as count
-FROM answer_logs
-GROUP BY difficulty;
+# Check question statistics
+wrangler d1 execute anki-interview-db --local --command \
+  "SELECT id, question_text, last_difficulty, last_answered_at, answer_count
+   FROM questions
+   WHERE answer_count > 0
+   ORDER BY last_answered_at DESC
+   LIMIT 10"
+
+# Difficulty distribution
+wrangler d1 execute anki-interview-db --local --command \
+  "SELECT difficulty, COUNT(*) as count
+   FROM answer_logs
+   GROUP BY difficulty"
 ```
 
-### 5. Future Enhancements
+### 6. Future Enhancements
 
-#### 5.1 Weighted question selection
+#### 6.1 Authentication for Backend API
+
+Currently, authentication is handled in the frontend via JWT cookies. Future enhancement should add:
+
+1. **Auth middleware in Hono:**
+   ```typescript
+   import { verify } from 'hono/jwt';
+
+   const authMiddleware = async (c, next) => {
+     const token = getCookie(c, 'anki_session');
+     if (!token) {
+       return c.json({ error: 'Unauthorized' }, 401);
+     }
+
+     try {
+       const payload = await verify(token, c.env.SESSION_SECRET);
+       c.set('user', payload);
+       await next();
+     } catch {
+       return c.json({ error: 'Invalid token' }, 401);
+     }
+   };
+
+   // Apply to study routes
+   app.use('/api/study/*', authMiddleware);
+   ```
+
+2. **Share session secret between frontend and backend** via environment variables
+
+#### 6.2 Weighted question selection
 
 ```typescript
-// Instead of pure random, weight by:
+// In backend: Instead of pure random, weight by:
 // 1. Never answered questions (priority)
 // 2. Least recently answered
 // 3. Harder difficulty
 
-export async function getNextWeightedQuestion(db: D1Database) {
+app.post('/api/study/next', async (c) => {
+  const db = c.env.DB;
+
   // Prioritize never-answered questions
   let question = await db.prepare(`
     SELECT id, question_text, source
@@ -704,7 +781,7 @@ export async function getNextWeightedQuestion(db: D1Database) {
     LIMIT 1
   `).first();
 
-  if (question) return question;
+  if (question) return c.json(transformQuestion(question));
 
   // Then oldest answered
   question = await db.prepare(`
@@ -714,36 +791,67 @@ export async function getNextWeightedQuestion(db: D1Database) {
     LIMIT 1
   `).first();
 
-  return question;
-}
+  return c.json(transformQuestion(question));
+});
 ```
 
-#### 5.2 Spaced repetition algorithm
+#### 6.3 Spaced repetition algorithm
 
 Future consideration: Implement SM-2 or similar algorithm for optimal review timing.
 
 ## Success Criteria
 
-- [x] API endpoint for next question works
-- [x] API endpoint for submitting answer works
-- [x] Study page UI functional
-- [x] Question → Show Answer → Difficulty → Next Question flow works
-- [x] Answer logs recorded in database
-- [x] Question aggregates updated correctly
-- [x] Error handling for empty database
-- [x] Loading states prevent issues
-- [x] Keyboard shortcuts work (if implemented)
+- [ ] Backend API endpoint for next question works (`POST /api/study/next`)
+- [ ] Backend API endpoint for getting answer works (`GET /api/study/:id`)
+- [ ] Backend API endpoint for submitting answer works (`POST /api/study/:id/answer`)
+- [ ] Frontend study page UI functional
+- [ ] Frontend correctly calls backend API endpoints
+- [ ] CORS configured properly between frontend and backend
+- [ ] Question → Show Answer → Difficulty → Next Question flow works end-to-end
+- [ ] Answer logs recorded in D1 database
+- [ ] Question aggregates updated correctly
+- [ ] Error handling for empty database
+- [ ] Error handling for backend connection issues
+- [ ] Loading states prevent issues
+- [ ] Keyboard shortcuts work (if implemented)
+- [ ] Local development workflow documented (backend + frontend)
 
 ## Next Steps
 
 After study flow is complete:
-1. Implement questions list and detail pages
-2. Add filtering and sorting
-3. Create settings page with sync button
-4. Deploy and test end-to-end
+1. Implement questions list and detail pages (frontend + backend API)
+2. Add filtering and sorting endpoints
+3. Create settings page with sync button (trigger backend GitHub sync)
+4. Deploy backend Worker and frontend Pages
+5. Configure production D1 database
+6. Test end-to-end in production
+
+## Deployment
+
+### Backend Deployment
+```bash
+cd backend
+wrangler deploy
+```
+
+### Frontend Deployment
+```bash
+cd frontend
+pnpm build
+# Deploy to Cloudflare Pages via dashboard or CLI
+```
+
+### Environment Setup
+1. Create production D1 database: `wrangler d1 create anki-interview-db-prod`
+2. Run migrations: `wrangler d1 migrations apply anki-interview-db-prod`
+3. Set frontend env var: `NEXT_PUBLIC_BACKEND_URL=https://your-worker.workers.dev`
+4. Configure CORS in backend to allow production frontend origin
 
 ## References
 
-- [Next.js Client Components](https://nextjs.org/docs/app/building-your-application/rendering/client-components)
+- [Hono Framework](https://hono.dev/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
 - [D1 Batch Operations](https://developers.cloudflare.com/d1/platform/client-api/#batch-statements)
+- [Next.js on Cloudflare Pages](https://developers.cloudflare.com/pages/framework-guides/nextjs/)
 - [Spaced Repetition Systems](https://en.wikipedia.org/wiki/Spaced_repetition)
