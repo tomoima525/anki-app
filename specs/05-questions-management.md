@@ -4,11 +4,19 @@
 
 Implement question browsing, filtering, sorting, and detail views to help users review their progress and explore all available questions.
 
+## Architecture
+
+This is a monorepo with separate frontend and backend:
+
+- **Frontend**: Next.js 15 (App Router) on Cloudflare Pages - UI and authentication
+- **Backend**: Cloudflare Workers with Hono framework - API endpoints and D1 database access
+- **Database**: D1 (SQLite) bound to backend Workers
+
 ## Prerequisites
 
-- Database setup completed
-- Authentication implemented
-- Questions synced to database
+- Database setup completed (D1 bound to backend)
+- Authentication implemented (frontend)
+- Questions synced to database (backend GitHub sync)
 - Study flow implemented
 
 ## Features
@@ -20,63 +28,58 @@ Implement question browsing, filtering, sorting, and detail views to help users 
 
 ## Implementation Tasks
 
-### 1. Questions List API
+### 1. Backend API Endpoints (Hono)
+
+All API endpoints are implemented in the backend using Hono framework.
+
+**Backend Location:** `/backend/src/index.ts`
 
 #### 1.1 Create list endpoint with filters
 
-**Location:** `/src/app/api/questions/route.ts`
+**Route:** `GET /api/questions`
 
 ```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
-import { getDB } from "@/lib/db";
-import { Question } from "@/types/database";
+// Add to /backend/src/index.ts
 
-export const runtime = "edge";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 
-interface QueryParams {
-  difficulty?: "easy" | "medium" | "hard";
-  sort?: "recent" | "oldest" | "most_answered" | "least_answered";
-  search?: string;
-  limit?: number;
-  offset?: number;
-}
+type Bindings = {
+  DB: D1Database;
+};
 
-export async function GET(request: NextRequest) {
+const app = new Hono<{ Bindings: Bindings }>();
+
+// Questions list endpoint
+app.get("/api/questions", async (c) => {
   try {
-    await requireSession();
-
-    const { searchParams } = request.nextUrl;
+    const db = c.env.DB;
 
     // Parse query parameters
-    const params: QueryParams = {
-      difficulty: searchParams.get("difficulty") as any,
-      sort: (searchParams.get("sort") as any) || "recent",
-      search: searchParams.get("search") || undefined,
-      limit: parseInt(searchParams.get("limit") || "50", 10),
-      offset: parseInt(searchParams.get("offset") || "0", 10),
-    };
-
-    const db = getDB();
+    const difficulty = c.req.query("difficulty"); // 'easy' | 'medium' | 'hard'
+    const sort = c.req.query("sort") || "recent";
+    const search = c.req.query("search");
+    const limit = parseInt(c.req.query("limit") || "50", 10);
+    const offset = parseInt(c.req.query("offset") || "0", 10);
 
     // Build query
     let query = "SELECT * FROM questions WHERE 1=1";
     const bindings: any[] = [];
 
     // Filter by difficulty
-    if (params.difficulty) {
+    if (difficulty && ["easy", "medium", "hard"].includes(difficulty)) {
       query += " AND last_difficulty = ?";
-      bindings.push(params.difficulty);
+      bindings.push(difficulty);
     }
 
     // Search in question text
-    if (params.search) {
+    if (search) {
       query += " AND question_text LIKE ?";
-      bindings.push(`%${params.search}%`);
+      bindings.push(`%${search}%`);
     }
 
     // Sort
-    switch (params.sort) {
+    switch (sort) {
       case "recent":
         query += " ORDER BY last_answered_at DESC NULLS LAST";
         break;
@@ -95,26 +98,26 @@ export async function GET(request: NextRequest) {
 
     // Pagination
     query += " LIMIT ? OFFSET ?";
-    bindings.push(params.limit, params.offset);
+    bindings.push(limit, offset);
 
     // Execute query
     const result = await db
       .prepare(query)
       .bind(...bindings)
-      .all<Question>();
+      .all();
 
     // Get total count for pagination
     let countQuery = "SELECT COUNT(*) as count FROM questions WHERE 1=1";
     const countBindings: any[] = [];
 
-    if (params.difficulty) {
+    if (difficulty && ["easy", "medium", "hard"].includes(difficulty)) {
       countQuery += " AND last_difficulty = ?";
-      countBindings.push(params.difficulty);
+      countBindings.push(difficulty);
     }
 
-    if (params.search) {
+    if (search) {
       countQuery += " AND question_text LIKE ?";
-      countBindings.push(`%${params.search}%`);
+      countBindings.push(`%${search}%`);
     }
 
     const countResult = await db
@@ -122,27 +125,20 @@ export async function GET(request: NextRequest) {
       .bind(...countBindings)
       .first<{ count: number }>();
 
-    return NextResponse.json({
+    return c.json({
       questions: result.results || [],
       pagination: {
         total: countResult?.count || 0,
-        limit: params.limit,
-        offset: params.offset,
-        hasMore: params.offset + params.limit < (countResult?.count || 0),
+        limit: limit,
+        offset: offset,
+        hasMore: offset + limit < (countResult?.count || 0),
       },
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     console.error("Get questions error:", error);
-    return NextResponse.json(
-      { error: "Failed to get questions" },
-      { status: 500 }
-    );
+    return c.json({ error: "Failed to get questions" }, 500);
   }
-}
+});
 ```
 
 **Acceptance Criteria:**
@@ -152,41 +148,33 @@ export async function GET(request: NextRequest) {
 - [ ] Searches question text
 - [ ] Sorts by multiple criteria
 - [ ] Returns total count for pagination
-- [ ] Requires authentication
+- [ ] CORS configured for frontend access
+
+**Future enhancements:**
+
+- [ ] Add authentication middleware (verify JWT from frontend)
 
 #### 1.2 Create question detail endpoint
 
-**Location:** `/src/app/api/questions/[id]/route.ts`
+**Route:** `GET /api/questions/:id`
 
 ```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
-import { getDB } from "@/lib/db";
-import { Question, AnswerLog } from "@/types/database";
+// Add to /backend/src/index.ts
 
-export const runtime = "edge";
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// Question detail endpoint
+app.get("/api/questions/:id", async (c) => {
   try {
-    await requireSession();
-
-    const { id } = params;
-    const db = getDB();
+    const id = c.req.param("id");
+    const db = c.env.DB;
 
     // Get question
     const question = await db
       .prepare("SELECT * FROM questions WHERE id = ?")
       .bind(id)
-      .first<Question>();
+      .first();
 
     if (!question) {
-      return NextResponse.json(
-        { error: "Question not found" },
-        { status: 404 }
-      );
+      return c.json({ error: "Question not found" }, 404);
     }
 
     // Get recent answer logs
@@ -198,24 +186,17 @@ export async function GET(
          LIMIT 20`
       )
       .bind(id)
-      .all<AnswerLog>();
+      .all();
 
-    return NextResponse.json({
+    return c.json({
       question,
       recentLogs: logs.results || [],
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     console.error("Get question detail error:", error);
-    return NextResponse.json(
-      { error: "Failed to get question details" },
-      { status: 500 }
-    );
+    return c.json({ error: "Failed to get question details" }, 500);
   }
-}
+});
 ```
 
 **Acceptance Criteria:**
@@ -223,24 +204,23 @@ export async function GET(
 - [ ] Returns full question details
 - [ ] Includes recent answer logs
 - [ ] 404 for non-existent questions
-- [ ] Requires authentication
+- [ ] CORS configured for frontend access
+
+**Future enhancements:**
+
+- [ ] Add authentication middleware
 
 #### 1.3 Create statistics endpoint
 
-**Location:** `/src/app/api/questions/stats/route.ts`
+**Route:** `GET /api/questions/stats`
 
 ```typescript
-import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
-import { getDB } from "@/lib/db";
+// Add to /backend/src/index.ts
 
-export const runtime = "edge";
-
-export async function GET() {
+// Statistics endpoint
+app.get("/api/questions/stats", async (c) => {
   try {
-    await requireSession();
-
-    const db = getDB();
+    const db = c.env.DB;
 
     // Total questions
     const totalResult = await db
@@ -288,7 +268,7 @@ export async function GET() {
       if (row.last_difficulty === "hard") difficultyStats.hard = row.count;
     });
 
-    return NextResponse.json({
+    return c.json({
       totalQuestions: totalResult?.count || 0,
       answeredQuestions: answeredResult?.count || 0,
       unansweredQuestions:
@@ -297,17 +277,10 @@ export async function GET() {
       recentActivity: recentActivityResult?.count || 0,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     console.error("Get stats error:", error);
-    return NextResponse.json(
-      { error: "Failed to get statistics" },
-      { status: 500 }
-    );
+    return c.json({ error: "Failed to get statistics" }, 500);
   }
-}
+});
 ```
 
 **Acceptance Criteria:**
@@ -316,12 +289,21 @@ export async function GET() {
 - [ ] Returns answered/unanswered breakdown
 - [ ] Returns difficulty distribution
 - [ ] Returns recent activity count
+- [ ] CORS configured for frontend access
 
-### 2. Questions List Page UI
+**Future enhancements:**
+
+- [ ] Add authentication middleware
+
+### 2. Frontend Questions List Page UI
+
+All frontend pages call the backend Worker API endpoints.
 
 #### 2.1 Create questions list page
 
-**Location:** `/src/app/questions/page.tsx`
+**Location:** `/frontend/src/app/questions/page.tsx`
+
+**Note:** Update API calls to point to backend Worker URL (configured via `NEXT_PUBLIC_BACKEND_URL` environment variable)
 
 ```typescript
 'use client';
@@ -368,7 +350,11 @@ export default function QuestionsPage() {
     if (search) params.set('search', search);
 
     try {
-      const response = await fetch(`/api/questions?${params}`);
+      // Call backend API (configure BACKEND_URL in .env)
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const response = await fetch(`${backendUrl}/api/questions?${params}`, {
+        credentials: 'include', // Send cookies for auth
+      });
       const data = await response.json();
       setData(data);
     } catch (error) {
@@ -564,11 +550,13 @@ export default function QuestionsPage() {
 - [ ] Loading states
 - [ ] Empty state with link to sync
 
-### 3. Question Detail Page UI
+### 3. Frontend Question Detail Page UI
 
 #### 3.1 Create question detail page
 
-**Location:** `/src/app/questions/[id]/page.tsx`
+**Location:** `/frontend/src/app/questions/[id]/page.tsx`
+
+**Note:** Update API calls to point to backend Worker URL
 
 ```typescript
 'use client';
@@ -613,7 +601,11 @@ export default function QuestionDetailPage() {
 
   const loadQuestion = async () => {
     try {
-      const response = await fetch(`/api/questions/${params.id}`);
+      // Call backend API
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const response = await fetch(`${backendUrl}/api/questions/${params.id}`, {
+        credentials: 'include', // Send cookies for auth
+      });
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -777,11 +769,13 @@ export default function QuestionDetailPage() {
 - [ ] Error handling for 404
 - [ ] Loading state
 
-### 4. Statistics Dashboard (Optional)
+### 4. Frontend Statistics Dashboard (Optional)
 
 #### 4.1 Create stats component
 
-**Location:** `/src/components/QuestionStats.tsx`
+**Location:** `/frontend/src/components/QuestionStats.tsx`
+
+**Note:** Calls backend API for statistics
 
 ```typescript
 'use client';
@@ -810,7 +804,11 @@ export default function QuestionStats() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('/api/questions/stats');
+      // Call backend API
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const response = await fetch(`${backendUrl}/api/questions/stats`, {
+        credentials: 'include', // Send cookies for auth
+      });
       const data = await response.json();
       setStats(data);
     } catch (error) {
@@ -861,9 +859,43 @@ export default function QuestionStats() {
 **Usage:**
 Add to questions list page above the filters.
 
-### 5. Testing
+### 5. Environment Configuration
 
-#### 5.1 Manual testing checklist
+#### 5.1 Frontend Environment Variables
+
+**Location:** `/frontend/.env.local`
+
+```bash
+# Backend API URL
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8787  # Development
+# NEXT_PUBLIC_BACKEND_URL=https://your-worker.workers.dev  # Production
+```
+
+### 6. Testing
+
+#### 6.1 Local Development
+
+1. Start backend:
+
+   ```bash
+   cd backend
+   pnpm dev  # Runs on http://localhost:8787
+   ```
+
+2. Start frontend:
+
+   ```bash
+   cd frontend
+   pnpm dev  # Runs on http://localhost:3000
+   ```
+
+3. Ensure questions are synced:
+   ```bash
+   cd backend
+   pnpm sync
+   ```
+
+#### 6.2 Manual testing checklist
 
 **Questions list:**
 
@@ -887,49 +919,103 @@ Add to questions list page above the filters.
 - [ ] Counts are accurate
 - [ ] Recent activity calculates correctly
 
-#### 5.2 Data verification
+**Edge cases:**
 
-```sql
--- Verify question counts match UI
-SELECT
-  COUNT(*) as total,
-  SUM(CASE WHEN answer_count > 0 THEN 1 ELSE 0 END) as answered,
-  SUM(CASE WHEN answer_count = 0 THEN 1 ELSE 0 END) as unanswered
-FROM questions;
+- [ ] Backend not running → shows connection error
+- [ ] Network error → shows error message
+- [ ] Invalid question ID → handles gracefully
+- [ ] CORS errors → verify CORS configuration in backend
 
--- Verify difficulty distribution
-SELECT
-  last_difficulty,
-  COUNT(*) as count
-FROM questions
-WHERE last_difficulty IS NOT NULL
-GROUP BY last_difficulty;
+#### 6.3 Data verification
+
+Run these via Wrangler CLI:
+
+```bash
+# Verify question counts match UI
+wrangler d1 execute anki-interview-db --local --command \
+  "SELECT
+    COUNT(*) as total,
+    SUM(CASE WHEN answer_count > 0 THEN 1 ELSE 0 END) as answered,
+    SUM(CASE WHEN answer_count = 0 THEN 1 ELSE 0 END) as unanswered
+   FROM questions"
+
+# Verify difficulty distribution
+wrangler d1 execute anki-interview-db --local --command \
+  "SELECT last_difficulty, COUNT(*) as count
+   FROM questions
+   WHERE last_difficulty IS NOT NULL
+   GROUP BY last_difficulty"
+
+# Check recent questions with answer logs
+wrangler d1 execute anki-interview-db --local --command \
+  "SELECT q.id, q.question_text, q.last_difficulty, q.answer_count, q.last_answered_at
+   FROM questions q
+   WHERE q.answer_count > 0
+   ORDER BY q.last_answered_at DESC
+   LIMIT 10"
 ```
 
 ## Success Criteria
 
-- [x] Questions list API with filters and sorting
-- [x] Question detail API with history
-- [x] Statistics API
-- [x] Questions list page functional
-- [x] Search and filters work
-- [x] Sorting works
-- [x] Question detail page shows full info
-- [x] Answer history displayed
-- [x] Statistics dashboard (if implemented)
-- [x] Pagination support (basic)
+- [ ] Backend API endpoint for questions list works (`GET /api/questions`)
+- [ ] Backend API endpoint for question detail works (`GET /api/questions/:id`)
+- [ ] Backend API endpoint for statistics works (`GET /api/questions/stats`)
+- [ ] Frontend questions list page functional
+- [ ] Frontend correctly calls backend API endpoints
+- [ ] CORS configured properly between frontend and backend
+- [ ] Search and filters work
+- [ ] Sorting works
+- [ ] Question detail page shows full info
+- [ ] Answer history displayed
+- [ ] Statistics dashboard (if implemented)
+- [ ] Pagination support (basic)
+- [ ] Error handling for backend connection issues
+- [ ] Loading states prevent issues
+- [ ] Local development workflow documented (backend + frontend)
+
+## Deployment
+
+### Backend Deployment
+
+Ensure backend endpoints are added to `/backend/src/index.ts`:
+
+```bash
+cd backend
+wrangler deploy
+```
+
+### Frontend Deployment
+
+```bash
+cd frontend
+pnpm build
+# Deploy to Cloudflare Pages via dashboard or CLI
+```
+
+### Environment Setup
+
+1. Backend: D1 database already configured in `wrangler.toml`
+2. Frontend: Set `NEXT_PUBLIC_BACKEND_URL` environment variable:
+   - Development: `http://localhost:8787`
+   - Production: `https://your-worker.workers.dev`
+3. Configure CORS in backend to allow production frontend origin
 
 ## Next Steps
 
 After questions management is complete:
 
-1. Implement settings page
-2. Add sync UI
+1. Implement settings page (frontend + backend API)
+2. Add sync UI to trigger backend GitHub sync
 3. Test entire flow end-to-end
-4. Deploy to Cloudflare Pages
+4. Deploy backend Worker and frontend Pages
+5. Configure production environment variables
 
 ## References
 
+- [Hono Framework](https://hono.dev/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [D1 Client API](https://developers.cloudflare.com/d1/platform/client-api/)
 - [Next.js Dynamic Routes](https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes)
-- [D1 Querying](https://developers.cloudflare.com/d1/platform/client-api/)
+- [Next.js on Cloudflare Pages](https://developers.cloudflare.com/pages/framework-guides/nextjs/)
 - [Tailwind CSS Tables](https://tailwindcss.com/docs/table-layout)
