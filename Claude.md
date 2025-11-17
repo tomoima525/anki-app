@@ -245,3 +245,8 @@ Detailed specifications are in the `specs/` directory:
 - **Frontend**: Deploy via Cloudflare Pages (`wrangler pages deploy`)
 - **Backend**: Deploy via Wrangler (`wrangler deploy`)
 - Both are configured for Cloudflare's edge network
+
+## Before Committing
+
+- Run `pnpm lint` to check for linting errors
+- Run `pnpm format` to format the code
