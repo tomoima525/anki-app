@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers';
-import { verifySession, getSessionCookieConfig } from './auth';
+import { cookies } from "next/headers";
+import { verifySession, getSessionCookieConfig } from "./auth";
 
 export async function getSession() {
   const cookieStore = cookies();
@@ -17,7 +17,7 @@ export async function requireSession() {
   const session = await getSession();
 
   if (!session) {
-    throw new Error('Unauthorized');
+    throw new Error("Unauthorized");
   }
 
   return session;

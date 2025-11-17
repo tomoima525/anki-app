@@ -11,13 +11,17 @@ export interface Env {
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<Response> {
     const url = new URL(request.url);
 
     // Health check endpoint
-    if (url.pathname === '/health') {
-      return new Response(JSON.stringify({ status: 'ok' }), {
-        headers: { 'Content-Type': 'application/json' },
+    if (url.pathname === "/health") {
+      return new Response(JSON.stringify({ status: "ok" }), {
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -27,6 +31,6 @@ export default {
     // - /api/study - Study session management
     // - /api/sync - GitHub sync operations
 
-    return new Response('Anki Interview Backend API', { status: 200 });
+    return new Response("Anki Interview Backend API", { status: 200 });
   },
 };

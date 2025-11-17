@@ -19,12 +19,14 @@ anki-interview-app/
 ```
 
 ### Frontend
+
 - **Framework**: Next.js 15 (App Router)
 - **Styling**: Tailwind CSS
 - **Authentication**: JWT sessions with HTTP-only cookies
 - **Deployment**: Cloudflare Pages
 
 ### Backend
+
 - **Runtime**: Cloudflare Workers
 - **Database**: Cloudflare D1 (SQLite)
 - **Framework**: Hono (lightweight)
@@ -72,6 +74,7 @@ pnpm dev
 Visit `http://localhost:3000`
 
 Default credentials:
+
 - Username: `admin`
 - Password: `admin123`
 

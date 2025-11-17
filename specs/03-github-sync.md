@@ -1,9 +1,11 @@
 # GitHub Sync Implementation Spec
 
 ## Overview
+
 This document describes how to implement a local script to fetch interview questions from GitHub repositories, parse them using OpenAI API, and store them in the database. The sync runs as a standalone script on your local machine, not as an API endpoint.
 
 ## Prerequisites
+
 - Database setup completed
 - OpenAI API access configured
 - Node.js and npm installed locally
@@ -17,6 +19,7 @@ This document describes how to implement a local script to fetch interview quest
 ### 1. Configuration
 
 #### 1.1 Define GitHub source configuration
+
 **Location:** `backend/src/config/sources.ts`
 
 ```typescript
@@ -29,15 +32,15 @@ export interface QuestionSource {
 
 export const QUESTION_SOURCES: QuestionSource[] = [
   {
-    id: 'backend-interview',
-    name: 'Back-End Developer Interview Questions',
-    url: 'https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md',
+    id: "backend-interview",
+    name: "Back-End Developer Interview Questions",
+    url: "https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md",
   },
   // Add more sources as needed
 ];
 
 export function getSourceById(id: string): QuestionSource | undefined {
-  return QUESTION_SOURCES.find(source => source.id === id);
+  return QUESTION_SOURCES.find((source) => source.id === id);
 }
 
 export function getAllSources(): QuestionSource[] {
@@ -46,12 +49,14 @@ export function getAllSources(): QuestionSource[] {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Source configuration file created
 - [ ] At least one source configured
 - [ ] Helper functions to access sources
 - [ ] Extensible for multiple sources
 
 #### 1.2 Add environment variables
+
 **Location:** `backend/.dev.vars` (for local development)
 
 ```env
@@ -67,6 +72,7 @@ DATABASE=your-d1-database
 ```
 
 **For production (Cloudflare):**
+
 ```bash
 # Set secrets in Cloudflare
 npx wrangler secret put OPENAI_API_KEY
@@ -74,6 +80,7 @@ npx wrangler secret put GITHUB_TOKEN  # if needed
 ```
 
 **Tasks:**
+
 - [ ] Add OpenAI API key to .dev.vars
 - [ ] Configure OpenAI model to use
 - [ ] Optionally add GitHub token
@@ -82,6 +89,7 @@ npx wrangler secret put GITHUB_TOKEN  # if needed
 ### 2. Markdown Fetching
 
 #### 2.1 Create GitHub fetcher utility
+
 **Location:** `backend/src/lib/github.ts`
 
 ```typescript
@@ -96,12 +104,12 @@ export async function fetchMarkdownFromGitHub(
   githubToken?: string
 ): Promise<FetchResult> {
   const headers: Record<string, string> = {
-    'Accept': 'text/plain',
-    'User-Agent': 'Anki-Interview-App',
+    Accept: "text/plain",
+    "User-Agent": "Anki-Interview-App",
   };
 
   if (githubToken) {
-    headers['Authorization'] = `Bearer ${githubToken}`;
+    headers["Authorization"] = `Bearer ${githubToken}`;
   }
 
   try {
@@ -120,9 +128,8 @@ export async function fetchMarkdownFromGitHub(
       source: url,
       fetchedAt: new Date(),
     };
-
   } catch (error) {
-    console.error('GitHub fetch error:', error);
+    console.error("GitHub fetch error:", error);
     throw new Error(`Failed to fetch markdown: ${error}`);
   }
 }
@@ -131,12 +138,13 @@ export async function fetchMultipleSources(
   urls: string[],
   githubToken?: string
 ): Promise<FetchResult[]> {
-  const promises = urls.map(url => fetchMarkdownFromGitHub(url, githubToken));
+  const promises = urls.map((url) => fetchMarkdownFromGitHub(url, githubToken));
   return await Promise.all(promises);
 }
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Can fetch raw markdown from GitHub
 - [ ] Supports GitHub authentication token
 - [ ] Proper error handling
@@ -145,10 +153,11 @@ export async function fetchMultipleSources(
 ### 3. OpenAI Question Parsing
 
 #### 3.1 Create OpenAI parser
+
 **Location:** `backend/src/lib/openai-parser.ts`
 
 ```typescript
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 export interface ParsedQuestion {
   question: string;
@@ -183,7 +192,7 @@ Here's the markdown content:
 export async function parseQuestionsWithOpenAI(
   markdown: string,
   apiKey: string,
-  model: string = 'gpt-4o-mini'
+  model: string = "gpt-4o-mini"
 ): Promise<ParsedQuestion[]> {
   const openai = new OpenAI({ apiKey });
 
@@ -192,22 +201,23 @@ export async function parseQuestionsWithOpenAI(
       model,
       messages: [
         {
-          role: 'system',
-          content: 'You are a precise question-answer extractor. Always return valid JSON.',
+          role: "system",
+          content:
+            "You are a precise question-answer extractor. Always return valid JSON.",
         },
         {
-          role: 'user',
+          role: "user",
           content: PARSING_PROMPT + markdown,
         },
       ],
       temperature: 0.1, // Low temperature for consistent parsing
-      response_format: { type: 'json_object' },
+      response_format: { type: "json_object" },
     });
 
     const content = response.choices[0]?.message?.content;
 
     if (!content) {
-      throw new Error('No content in OpenAI response');
+      throw new Error("No content in OpenAI response");
     }
 
     const parsed = JSON.parse(content);
@@ -220,12 +230,11 @@ export async function parseQuestionsWithOpenAI(
       (q: any) =>
         q.question &&
         q.answer &&
-        typeof q.question === 'string' &&
-        typeof q.answer === 'string'
+        typeof q.question === "string" &&
+        typeof q.answer === "string"
     );
-
   } catch (error) {
-    console.error('OpenAI parsing error:', error);
+    console.error("OpenAI parsing error:", error);
     throw new Error(`Failed to parse questions: ${error}`);
   }
 }
@@ -234,7 +243,7 @@ export async function parseQuestionsWithOpenAI(
 export async function parseQuestionsInChunks(
   markdown: string,
   apiKey: string,
-  model: string = 'gpt-4o-mini',
+  model: string = "gpt-4o-mini",
   chunkSize: number = 8000
 ): Promise<ParsedQuestion[]> {
   const chunks = splitMarkdownIntoChunks(markdown, chunkSize);
@@ -248,10 +257,13 @@ export async function parseQuestionsInChunks(
   return allQuestions;
 }
 
-function splitMarkdownIntoChunks(content: string, maxChunkSize: number): string[] {
+function splitMarkdownIntoChunks(
+  content: string,
+  maxChunkSize: number
+): string[] {
   const chunks: string[] = [];
-  const lines = content.split('\n');
-  let currentChunk = '';
+  const lines = content.split("\n");
+  let currentChunk = "";
 
   for (const line of lines) {
     if (currentChunk.length + line.length > maxChunkSize) {
@@ -260,7 +272,7 @@ function splitMarkdownIntoChunks(content: string, maxChunkSize: number): string[
       }
       currentChunk = line;
     } else {
-      currentChunk += '\n' + line;
+      currentChunk += "\n" + line;
     }
   }
 
@@ -273,11 +285,13 @@ function splitMarkdownIntoChunks(content: string, maxChunkSize: number): string[
 ```
 
 **Dependencies:**
+
 ```bash
 npm install openai --workspace=backend
 ```
 
 **Acceptance Criteria:**
+
 - [ ] OpenAI client configured
 - [ ] Parsing prompt extracts Q&A pairs
 - [ ] Returns structured JSON
@@ -288,11 +302,12 @@ npm install openai --workspace=backend
 ### 4. Database Upsert Logic
 
 #### 4.1 Create question upsert functions
+
 **Location:** `backend/src/lib/questions.ts`
 
 ```typescript
-import { generateQuestionId } from './db';
-import { Question } from '../types/database';
+import { generateQuestionId } from "./db";
+import { Question } from "../types/database";
 
 export interface UpsertResult {
   inserted: number;
@@ -306,15 +321,15 @@ export async function upsertQuestion(
   question: string,
   answer: string,
   source: string
-): Promise<'inserted' | 'updated'> {
+): Promise<"inserted" | "updated"> {
   const id = generateQuestionId(question);
   const now = new Date().toISOString();
 
   // Check if question exists
   const existing = await db
-    .prepare('SELECT id, updated_at FROM questions WHERE id = ?')
+    .prepare("SELECT id, updated_at FROM questions WHERE id = ?")
     .bind(id)
-    .first<Pick<Question, 'id' | 'updated_at'>>();
+    .first<Pick<Question, "id" | "updated_at">>();
 
   if (existing) {
     // Update existing question
@@ -327,7 +342,7 @@ export async function upsertQuestion(
       .bind(answer, source, now, id)
       .run();
 
-    return 'updated';
+    return "updated";
   } else {
     // Insert new question
     await db
@@ -338,7 +353,7 @@ export async function upsertQuestion(
       .bind(id, question, answer, source, now, now)
       .run();
 
-    return 'inserted';
+    return "inserted";
   }
 }
 
@@ -358,7 +373,7 @@ export async function upsertQuestions(
     try {
       const action = await upsertQuestion(db, question, answer, source);
 
-      if (action === 'inserted') {
+      if (action === "inserted") {
         result.inserted++;
       } else {
         result.updated++;
@@ -393,11 +408,13 @@ export async function batchUpsertQuestions(
 
     // Use INSERT OR REPLACE for simpler upsert
     statements.push(
-      db.prepare(
-        `INSERT OR REPLACE INTO questions
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO questions
          (id, question_text, answer_text, source, created_at, updated_at)
          VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM questions WHERE id = ?), ?), ?)`
-      ).bind(id, question, answer, source, id, now, now)
+        )
+        .bind(id, question, answer, source, id, now, now)
     );
   }
 
@@ -410,7 +427,7 @@ export async function batchUpsertQuestions(
       result.inserted += batch.length; // Simplified - actual tracking would need more logic
     }
   } catch (error) {
-    console.error('Batch upsert error:', error);
+    console.error("Batch upsert error:", error);
     throw error;
   }
 
@@ -419,6 +436,7 @@ export async function batchUpsertQuestions(
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Individual upsert function works
 - [ ] Batch upsert for performance
 - [ ] Returns statistics (inserted, updated, skipped)
@@ -428,13 +446,14 @@ export async function batchUpsertQuestions(
 ### 5. Sync Script
 
 #### 5.1 Create the main sync script
+
 **Location:** `backend/scripts/sync-github.ts`
 
 ```typescript
-import { fetchMarkdownFromGitHub } from '../src/lib/github';
-import { parseQuestionsInChunks } from '../src/lib/openai-parser';
-import { batchUpsertQuestions } from '../src/lib/questions';
-import { getAllSources } from '../src/config/sources';
+import { fetchMarkdownFromGitHub } from "../src/lib/github";
+import { parseQuestionsInChunks } from "../src/lib/openai-parser";
+import { batchUpsertQuestions } from "../src/lib/questions";
+import { getAllSources } from "../src/config/sources";
 
 interface Env {
   DB: D1Database;
@@ -448,19 +467,19 @@ export default {
     const db = env.DB;
     const githubToken = env.GITHUB_TOKEN;
     const apiKey = env.OPENAI_API_KEY;
-    const model = env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = env.OPENAI_MODEL || "gpt-4o-mini";
 
     if (!apiKey) {
-      console.error('Error: OPENAI_API_KEY is not set');
-      return new Response('Error: OPENAI_API_KEY is not set', { status: 500 });
+      console.error("Error: OPENAI_API_KEY is not set");
+      return new Response("Error: OPENAI_API_KEY is not set", { status: 500 });
     }
 
     // Get all configured sources
     const sources = getAllSources();
 
     if (sources.length === 0) {
-      console.error('Error: No sources configured');
-      return new Response('Error: No sources configured', { status: 400 });
+      console.error("Error: No sources configured");
+      return new Response("Error: No sources configured", { status: 400 });
     }
 
     console.log(`Starting sync for ${sources.length} source(s)...\n`);
@@ -473,34 +492,42 @@ export default {
 
       try {
         // 1. Fetch markdown
-        console.log('  📥 Fetching markdown...');
-        const { content } = await fetchMarkdownFromGitHub(source.url, githubToken);
+        console.log("  📥 Fetching markdown...");
+        const { content } = await fetchMarkdownFromGitHub(
+          source.url,
+          githubToken
+        );
         console.log(`  ✓ Fetched ${content.length} characters`);
 
         // 2. Parse with OpenAI
-        console.log('  🤖 Parsing with OpenAI...');
+        console.log("  🤖 Parsing with OpenAI...");
         const questions = await parseQuestionsInChunks(content, apiKey, model);
         console.log(`  ✓ Parsed ${questions.length} questions`);
 
         // 3. Upsert to database
-        console.log('  💾 Upserting to database...');
-        const upsertResult = await batchUpsertQuestions(db, questions, source.url);
-        console.log(`  ✓ Inserted: ${upsertResult.inserted}, Updated: ${upsertResult.updated}, Skipped: ${upsertResult.skipped}`);
+        console.log("  💾 Upserting to database...");
+        const upsertResult = await batchUpsertQuestions(
+          db,
+          questions,
+          source.url
+        );
+        console.log(
+          `  ✓ Inserted: ${upsertResult.inserted}, Updated: ${upsertResult.updated}, Skipped: ${upsertResult.skipped}`
+        );
 
         results.push({
           source: source.name,
           ...upsertResult,
         });
-
       } catch (error) {
         console.error(`  ✗ Failed to sync source ${source.name}:`, error);
         results.push({
           source: source.name,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? error.message : "Unknown error",
         });
       }
 
-      console.log('');
+      console.log("");
     }
 
     // Calculate totals
@@ -516,7 +543,7 @@ export default {
       { inserted: 0, updated: 0, total: 0 }
     );
 
-    console.log('=== Sync Complete ===');
+    console.log("=== Sync Complete ===");
     console.log(`Total questions: ${totals.total}`);
     console.log(`Inserted: ${totals.inserted}`);
     console.log(`Updated: ${totals.updated}`);
@@ -529,13 +556,14 @@ export default {
     };
 
     return new Response(JSON.stringify(response, null, 2), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     });
   },
 };
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Fetches from all configured sources
 - [ ] Parses with OpenAI
 - [ ] Upserts to database
@@ -545,6 +573,7 @@ export default {
 - [ ] Provides progress output
 
 #### 5.2 Add npm script for easy execution
+
 **Location:** `backend/package.json`
 
 Add to the scripts section:
@@ -569,6 +598,7 @@ Or for remote execution against production database:
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Script can be run with npm command
 - [ ] Works with local D1 database
 - [ ] Works with remote D1 database
@@ -601,12 +631,14 @@ npx wrangler dev --local scripts/sync-github.ts --test-scheduled
 ```
 
 This will:
+
 1. Load environment variables from `.dev.vars`
 2. Connect to your local D1 database
 3. Execute the sync script
 4. Display progress and results in the console
 
 **Acceptance Criteria:**
+
 - [ ] Script runs successfully from command line
 - [ ] Progress is displayed during execution
 - [ ] Results summary is shown at the end
@@ -617,12 +649,14 @@ This will:
 #### 7.1 Manual testing
 
 **Test GitHub fetch:**
+
 ```bash
 # Test fetching markdown directly
 curl -v "https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md"
 ```
 
 **Verify database after sync:**
+
 ```bash
 # From backend directory
 npx wrangler d1 execute anki-db --local --command "SELECT COUNT(*) FROM questions"
@@ -630,6 +664,7 @@ npx wrangler d1 execute anki-db --local --command "SELECT * FROM questions LIMIT
 ```
 
 **Checklist:**
+
 - [ ] Can fetch markdown from GitHub
 - [ ] OpenAI parses questions correctly
 - [ ] Questions inserted into database
@@ -645,7 +680,7 @@ Create a test file to validate parsing:
 **Location:** `backend/scripts/test-parse.ts`
 
 ```typescript
-import { parseQuestionsWithOpenAI } from '../src/lib/openai-parser';
+import { parseQuestionsWithOpenAI } from "../src/lib/openai-parser";
 
 const sampleMarkdown = `
 # Interview Questions
@@ -669,18 +704,22 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const apiKey = env.OPENAI_API_KEY;
-    const model = env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = env.OPENAI_MODEL || "gpt-4o-mini";
 
     try {
-      console.log('Testing OpenAI parsing...\n');
-      const questions = await parseQuestionsWithOpenAI(sampleMarkdown, apiKey, model);
-      console.log('Parsed questions:', JSON.stringify(questions, null, 2));
+      console.log("Testing OpenAI parsing...\n");
+      const questions = await parseQuestionsWithOpenAI(
+        sampleMarkdown,
+        apiKey,
+        model
+      );
+      console.log("Parsed questions:", JSON.stringify(questions, null, 2));
 
       return new Response(JSON.stringify(questions, null, 2), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       return new Response(`Error: ${error}`, { status: 500 });
     }
   },
@@ -688,11 +727,13 @@ export default {
 ```
 
 **Run test:**
+
 ```bash
 npx wrangler dev --local scripts/test-parse.ts --test-scheduled
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Sample markdown parses correctly
 - [ ] Questions and answers separated properly
 - [ ] No parsing errors
@@ -723,6 +764,7 @@ npm run sync
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Production secrets configured
 - [ ] Can sync to production database
 - [ ] Questions visible in production
@@ -744,6 +786,7 @@ npm run sync
 ## Error Scenarios
 
 Handle these gracefully:
+
 - [ ] GitHub API rate limit exceeded
 - [ ] Network timeout
 - [ ] Invalid markdown format
@@ -767,6 +810,7 @@ Handle these gracefully:
 ## Next Steps
 
 After sync script is implemented:
+
 1. Test with real GitHub repositories
 2. Monitor OpenAI token usage and costs
 3. Consider adding scheduled runs (cron trigger)

@@ -1,9 +1,11 @@
 # Questions Management Implementation Spec
 
 ## Overview
+
 Implement question browsing, filtering, sorting, and detail views to help users review their progress and explore all available questions.
 
 ## Prerequisites
+
 - Database setup completed
 - Authentication implemented
 - Questions synced to database
@@ -21,19 +23,20 @@ Implement question browsing, filtering, sorting, and detail views to help users 
 ### 1. Questions List API
 
 #### 1.1 Create list endpoint with filters
+
 **Location:** `/src/app/api/questions/route.ts`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
-import { Question } from '@/types/database';
+import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
+import { getDB } from "@/lib/db";
+import { Question } from "@/types/database";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 interface QueryParams {
-  difficulty?: 'easy' | 'medium' | 'hard';
-  sort?: 'recent' | 'oldest' | 'most_answered' | 'least_answered';
+  difficulty?: "easy" | "medium" | "hard";
+  sort?: "recent" | "oldest" | "most_answered" | "least_answered";
   search?: string;
   limit?: number;
   offset?: number;
@@ -47,67 +50,70 @@ export async function GET(request: NextRequest) {
 
     // Parse query parameters
     const params: QueryParams = {
-      difficulty: searchParams.get('difficulty') as any,
-      sort: (searchParams.get('sort') as any) || 'recent',
-      search: searchParams.get('search') || undefined,
-      limit: parseInt(searchParams.get('limit') || '50', 10),
-      offset: parseInt(searchParams.get('offset') || '0', 10),
+      difficulty: searchParams.get("difficulty") as any,
+      sort: (searchParams.get("sort") as any) || "recent",
+      search: searchParams.get("search") || undefined,
+      limit: parseInt(searchParams.get("limit") || "50", 10),
+      offset: parseInt(searchParams.get("offset") || "0", 10),
     };
 
     const db = getDB();
 
     // Build query
-    let query = 'SELECT * FROM questions WHERE 1=1';
+    let query = "SELECT * FROM questions WHERE 1=1";
     const bindings: any[] = [];
 
     // Filter by difficulty
     if (params.difficulty) {
-      query += ' AND last_difficulty = ?';
+      query += " AND last_difficulty = ?";
       bindings.push(params.difficulty);
     }
 
     // Search in question text
     if (params.search) {
-      query += ' AND question_text LIKE ?';
+      query += " AND question_text LIKE ?";
       bindings.push(`%${params.search}%`);
     }
 
     // Sort
     switch (params.sort) {
-      case 'recent':
-        query += ' ORDER BY last_answered_at DESC NULLS LAST';
+      case "recent":
+        query += " ORDER BY last_answered_at DESC NULLS LAST";
         break;
-      case 'oldest':
-        query += ' ORDER BY last_answered_at ASC NULLS FIRST';
+      case "oldest":
+        query += " ORDER BY last_answered_at ASC NULLS FIRST";
         break;
-      case 'most_answered':
-        query += ' ORDER BY answer_count DESC';
+      case "most_answered":
+        query += " ORDER BY answer_count DESC";
         break;
-      case 'least_answered':
-        query += ' ORDER BY answer_count ASC';
+      case "least_answered":
+        query += " ORDER BY answer_count ASC";
         break;
       default:
-        query += ' ORDER BY created_at DESC';
+        query += " ORDER BY created_at DESC";
     }
 
     // Pagination
-    query += ' LIMIT ? OFFSET ?';
+    query += " LIMIT ? OFFSET ?";
     bindings.push(params.limit, params.offset);
 
     // Execute query
-    const result = await db.prepare(query).bind(...bindings).all<Question>();
+    const result = await db
+      .prepare(query)
+      .bind(...bindings)
+      .all<Question>();
 
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as count FROM questions WHERE 1=1';
+    let countQuery = "SELECT COUNT(*) as count FROM questions WHERE 1=1";
     const countBindings: any[] = [];
 
     if (params.difficulty) {
-      countQuery += ' AND last_difficulty = ?';
+      countQuery += " AND last_difficulty = ?";
       countBindings.push(params.difficulty);
     }
 
     if (params.search) {
-      countQuery += ' AND question_text LIKE ?';
+      countQuery += " AND question_text LIKE ?";
       countBindings.push(`%${params.search}%`);
     }
 
@@ -122,21 +128,17 @@ export async function GET(request: NextRequest) {
         total: countResult?.count || 0,
         limit: params.limit,
         offset: params.offset,
-        hasMore: (params.offset + params.limit) < (countResult?.count || 0),
+        hasMore: params.offset + params.limit < (countResult?.count || 0),
       },
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.error('Get questions error:', error);
+    console.error("Get questions error:", error);
     return NextResponse.json(
-      { error: 'Failed to get questions' },
+      { error: "Failed to get questions" },
       { status: 500 }
     );
   }
@@ -144,6 +146,7 @@ export async function GET(request: NextRequest) {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Returns paginated question list
 - [ ] Filters by difficulty
 - [ ] Searches question text
@@ -152,15 +155,16 @@ export async function GET(request: NextRequest) {
 - [ ] Requires authentication
 
 #### 1.2 Create question detail endpoint
+
 **Location:** `/src/app/api/questions/[id]/route.ts`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
-import { Question, AnswerLog } from '@/types/database';
+import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
+import { getDB } from "@/lib/db";
+import { Question, AnswerLog } from "@/types/database";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 export async function GET(
   request: NextRequest,
@@ -174,13 +178,13 @@ export async function GET(
 
     // Get question
     const question = await db
-      .prepare('SELECT * FROM questions WHERE id = ?')
+      .prepare("SELECT * FROM questions WHERE id = ?")
       .bind(id)
       .first<Question>();
 
     if (!question) {
       return NextResponse.json(
-        { error: 'Question not found' },
+        { error: "Question not found" },
         { status: 404 }
       );
     }
@@ -200,18 +204,14 @@ export async function GET(
       question,
       recentLogs: logs.results || [],
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.error('Get question detail error:', error);
+    console.error("Get question detail error:", error);
     return NextResponse.json(
-      { error: 'Failed to get question details' },
+      { error: "Failed to get question details" },
       { status: 500 }
     );
   }
@@ -219,20 +219,22 @@ export async function GET(
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Returns full question details
 - [ ] Includes recent answer logs
 - [ ] 404 for non-existent questions
 - [ ] Requires authentication
 
 #### 1.3 Create statistics endpoint
+
 **Location:** `/src/app/api/questions/stats/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
+import { getDB } from "@/lib/db";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 export async function GET() {
   try {
@@ -242,12 +244,12 @@ export async function GET() {
 
     // Total questions
     const totalResult = await db
-      .prepare('SELECT COUNT(*) as count FROM questions')
+      .prepare("SELECT COUNT(*) as count FROM questions")
       .first<{ count: number }>();
 
     // Answered questions
     const answeredResult = await db
-      .prepare('SELECT COUNT(*) as count FROM questions WHERE answer_count > 0')
+      .prepare("SELECT COUNT(*) as count FROM questions WHERE answer_count > 0")
       .first<{ count: number }>();
 
     // Difficulty distribution
@@ -280,31 +282,28 @@ export async function GET() {
       hard: 0,
     };
 
-    (difficultyResult.results || []).forEach(row => {
-      if (row.last_difficulty === 'easy') difficultyStats.easy = row.count;
-      if (row.last_difficulty === 'medium') difficultyStats.medium = row.count;
-      if (row.last_difficulty === 'hard') difficultyStats.hard = row.count;
+    (difficultyResult.results || []).forEach((row) => {
+      if (row.last_difficulty === "easy") difficultyStats.easy = row.count;
+      if (row.last_difficulty === "medium") difficultyStats.medium = row.count;
+      if (row.last_difficulty === "hard") difficultyStats.hard = row.count;
     });
 
     return NextResponse.json({
       totalQuestions: totalResult?.count || 0,
       answeredQuestions: answeredResult?.count || 0,
-      unansweredQuestions: (totalResult?.count || 0) - (answeredResult?.count || 0),
+      unansweredQuestions:
+        (totalResult?.count || 0) - (answeredResult?.count || 0),
       difficultyDistribution: difficultyStats,
       recentActivity: recentActivityResult?.count || 0,
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.error('Get stats error:', error);
+    console.error("Get stats error:", error);
     return NextResponse.json(
-      { error: 'Failed to get statistics' },
+      { error: "Failed to get statistics" },
       { status: 500 }
     );
   }
@@ -312,6 +311,7 @@ export async function GET() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Returns total question count
 - [ ] Returns answered/unanswered breakdown
 - [ ] Returns difficulty distribution
@@ -320,6 +320,7 @@ export async function GET() {
 ### 2. Questions List Page UI
 
 #### 2.1 Create questions list page
+
 **Location:** `/src/app/questions/page.tsx`
 
 ```typescript
@@ -553,6 +554,7 @@ export default function QuestionsPage() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Displays questions in table format
 - [ ] Search by question text
 - [ ] Filter by difficulty
@@ -565,6 +567,7 @@ export default function QuestionsPage() {
 ### 3. Question Detail Page UI
 
 #### 3.1 Create question detail page
+
 **Location:** `/src/app/questions/[id]/page.tsx`
 
 ```typescript
@@ -766,6 +769,7 @@ export default function QuestionDetailPage() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Shows full question and answer
 - [ ] Displays metadata (source, answer count, last difficulty)
 - [ ] Shows answer history with timestamps
@@ -776,6 +780,7 @@ export default function QuestionDetailPage() {
 ### 4. Statistics Dashboard (Optional)
 
 #### 4.1 Create stats component
+
 **Location:** `/src/components/QuestionStats.tsx`
 
 ```typescript
@@ -861,6 +866,7 @@ Add to questions list page above the filters.
 #### 5.1 Manual testing checklist
 
 **Questions list:**
+
 - [ ] Navigate to /questions
 - [ ] See list of all questions
 - [ ] Search for keyword → filters results
@@ -869,12 +875,14 @@ Add to questions list page above the filters.
 - [ ] Click question → goes to detail page
 
 **Question detail:**
+
 - [ ] Shows full question and answer
 - [ ] Shows metadata correctly
 - [ ] Shows answer history if exists
 - [ ] Back button works
 
 **Statistics:**
+
 - [ ] Stats display correctly
 - [ ] Counts are accurate
 - [ ] Recent activity calculates correctly
@@ -914,6 +922,7 @@ GROUP BY last_difficulty;
 ## Next Steps
 
 After questions management is complete:
+
 1. Implement settings page
 2. Add sync UI
 3. Test entire flow end-to-end

@@ -1,5 +1,5 @@
-import { generateQuestionId } from './db';
-import { Question } from '../types/database';
+import { generateQuestionId } from "./db";
+import { Question } from "../types/database";
 
 export interface UpsertResult {
   inserted: number;
@@ -13,15 +13,15 @@ export async function upsertQuestion(
   question: string,
   answer: string,
   source: string
-): Promise<'inserted' | 'updated'> {
+): Promise<"inserted" | "updated"> {
   const id = await generateQuestionId(question);
   const now = new Date().toISOString();
 
   // Check if question exists
   const existing = await db
-    .prepare('SELECT id, updated_at FROM questions WHERE id = ?')
+    .prepare("SELECT id, updated_at FROM questions WHERE id = ?")
     .bind(id)
-    .first<Pick<Question, 'id' | 'updated_at'>>();
+    .first<Pick<Question, "id" | "updated_at">>();
 
   if (existing) {
     // Update existing question
@@ -34,7 +34,7 @@ export async function upsertQuestion(
       .bind(answer, source, now, id)
       .run();
 
-    return 'updated';
+    return "updated";
   } else {
     // Insert new question
     await db
@@ -45,7 +45,7 @@ export async function upsertQuestion(
       .bind(id, question, answer, source, now, now)
       .run();
 
-    return 'inserted';
+    return "inserted";
   }
 }
 
@@ -65,7 +65,7 @@ export async function upsertQuestions(
     try {
       const action = await upsertQuestion(db, question, answer, source);
 
-      if (action === 'inserted') {
+      if (action === "inserted") {
         result.inserted++;
       } else {
         result.updated++;
@@ -100,11 +100,13 @@ export async function batchUpsertQuestions(
 
     // Use INSERT OR REPLACE for simpler upsert
     statements.push(
-      db.prepare(
-        `INSERT OR REPLACE INTO questions
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO questions
          (id, question_text, answer_text, source, created_at, updated_at)
          VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM questions WHERE id = ?), ?), ?)`
-      ).bind(id, question, answer, source, id, now, now)
+        )
+        .bind(id, question, answer, source, id, now, now)
     );
   }
 
@@ -117,7 +119,7 @@ export async function batchUpsertQuestions(
       result.inserted += batch.length; // Simplified - actual tracking would need more logic
     }
   } catch (error) {
-    console.error('Batch upsert error:', error);
+    console.error("Batch upsert error:", error);
     throw error;
   }
 

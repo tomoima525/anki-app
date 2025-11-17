@@ -88,6 +88,7 @@ The app uses JWT-based authentication with the following flow:
 5. Session expires after 7 days (configurable)
 
 Default credentials (development):
+
 - **Username**: `admin`
 - **Password**: `admin123`
 
@@ -101,6 +102,7 @@ wrangler pages deploy
 ```
 
 Set environment variables in Cloudflare dashboard:
+
 - `APP_USERNAME`
 - `APP_PASSWORD_HASH`
 - `SESSION_SECRET`

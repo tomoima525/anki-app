@@ -1,9 +1,11 @@
 # Database Setup Implementation Spec
 
 ## Overview
+
 Set up Cloudflare D1 database with proper schema, migrations, and type-safe access for the flashcard application.
 
 ## Prerequisites
+
 - Cloudflare account with D1 access
 - Wrangler CLI installed (`npm install -g wrangler`)
 - Next.js project initialized
@@ -13,6 +15,7 @@ Set up Cloudflare D1 database with proper schema, migrations, and type-safe acce
 ### 1. Database Schema Design
 
 #### 1.1 Create schema.sql file
+
 **Location:** `/db/schema.sql`
 
 ```sql
@@ -53,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_answer_logs_answered_at
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Schema file created with both tables
 - [ ] Primary keys defined correctly
 - [ ] Foreign key constraint on answer_logs
@@ -60,17 +64,20 @@ CREATE INDEX IF NOT EXISTS idx_answer_logs_answered_at
 - [ ] Indexes created for common queries
 
 #### 1.2 Create migration file
+
 **Location:** `/db/migrations/0001_initial_schema.sql`
 
 Same content as schema.sql above, but structured as a migration.
 
 **Acceptance Criteria:**
+
 - [ ] Migration file follows D1 migration naming convention
 - [ ] Migration is idempotent (uses IF NOT EXISTS)
 
 ### 2. Wrangler Configuration
 
 #### 2.1 Configure wrangler.toml
+
 **Location:** `/wrangler.toml`
 
 ```toml
@@ -91,6 +98,7 @@ database_id = "<will-be-generated>"
 ```
 
 **Tasks:**
+
 - [ ] Create wrangler.toml if not exists
 - [ ] Add D1 database binding
 - [ ] Configure migrations directory
@@ -99,6 +107,7 @@ database_id = "<will-be-generated>"
 #### 2.2 Create D1 database instances
 
 **Commands:**
+
 ```bash
 # Create local development database
 npx wrangler d1 create anki-interview-db
@@ -108,11 +117,13 @@ npx wrangler d1 create anki-interview-db-prod
 ```
 
 **Tasks:**
+
 - [ ] Run database creation commands
 - [ ] Copy generated database_id values to wrangler.toml
 - [ ] Verify databases exist: `npx wrangler d1 list`
 
 **Acceptance Criteria:**
+
 - [ ] Local database created
 - [ ] Production database created
 - [ ] Database IDs stored in wrangler.toml
@@ -131,6 +142,7 @@ npx wrangler d1 execute anki-interview-db --local \
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Migration runs without errors
 - [ ] Both tables created
 - [ ] Indexes created
@@ -143,12 +155,14 @@ npx wrangler d1 migrations apply anki-interview-db-prod --remote
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Production migration successful
 - [ ] Tables verified in production
 
 ### 4. Database Access Layer
 
 #### 4.1 Create TypeScript types
+
 **Location:** `/src/types/database.ts`
 
 ```typescript
@@ -160,18 +174,18 @@ export interface Question {
   created_at: string;
   updated_at: string;
   last_answered_at: string | null;
-  last_difficulty: 'easy' | 'medium' | 'hard' | null;
+  last_difficulty: "easy" | "medium" | "hard" | null;
   answer_count: number;
 }
 
 export interface AnswerLog {
   id: number;
   question_id: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   answered_at: string;
 }
 
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Difficulty = "easy" | "medium" | "hard";
 
 export interface QuestionWithLogs extends Question {
   recent_logs: AnswerLog[];
@@ -179,35 +193,35 @@ export interface QuestionWithLogs extends Question {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Types match database schema exactly
 - [ ] Export all necessary types
 - [ ] Proper TypeScript strictness
 
 #### 4.2 Create database utility functions
+
 **Location:** `/src/lib/db.ts`
 
 ```typescript
-import { D1Database } from '@cloudflare/workers-types';
-import crypto from 'crypto';
+import { D1Database } from "@cloudflare/workers-types";
+import crypto from "crypto";
 
 export function generateQuestionId(questionText: string): string {
-  return crypto
-    .createHash('sha256')
-    .update(questionText.trim())
-    .digest('hex');
+  return crypto.createHash("sha256").update(questionText.trim()).digest("hex");
 }
 
 export function getDB(): D1Database {
   // Access binding from Cloudflare context
   // This will be environment-specific
-  if (typeof process.env.DB !== 'undefined') {
+  if (typeof process.env.DB !== "undefined") {
     return process.env.DB as D1Database;
   }
-  throw new Error('Database binding not available');
+  throw new Error("Database binding not available");
 }
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Question ID generation is deterministic
 - [ ] Database access helper created
 - [ ] Proper error handling
@@ -245,12 +259,14 @@ DELETE FROM questions WHERE id = 'test123';
 ```
 
 **Tasks:**
+
 - [ ] Run all test queries locally
 - [ ] Verify constraints work (try invalid difficulty)
 - [ ] Verify foreign key cascade on delete
 - [ ] Clean up test data
 
 #### 5.2 Create seed data (optional for development)
+
 **Location:** `/db/seed.sql`
 
 ```sql
@@ -260,12 +276,14 @@ INSERT INTO questions (id, question_text, answer_text, source) VALUES
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Seed file created with sample questions
 - [ ] Seed data can be applied: `npx wrangler d1 execute anki-interview-db --local --file=./db/seed.sql`
 
 ## Rollback Plan
 
 If issues occur:
+
 ```bash
 # Drop all tables (local)
 npx wrangler d1 execute anki-interview-db --local \
@@ -290,6 +308,7 @@ npx wrangler d1 migrations apply anki-interview-db --local
 ## Next Steps
 
 After database setup is complete:
+
 1. Proceed to authentication implementation
 2. Build API routes that use these database tables
 3. Implement query functions for each API endpoint

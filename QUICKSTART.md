@@ -39,6 +39,7 @@ cp .env.local.example .env.local
 ```
 
 The default credentials are:
+
 - Username: `admin`
 - Password: `admin123`
 
@@ -88,11 +89,13 @@ API available at: http://localhost:8787
 ### Option C: Run Both (in separate terminals)
 
 Terminal 1:
+
 ```bash
 cd frontend && pnpm dev
 ```
 
 Terminal 2:
+
 ```bash
 cd backend && pnpm dev
 ```

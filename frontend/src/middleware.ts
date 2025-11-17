@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { verifySession, getSessionCookieConfig } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifySession, getSessionCookieConfig } from "@/lib/auth";
 
 // Routes that don't require authentication
-const publicPaths = ['/login', '/api/login'];
+const publicPaths = ["/login", "/api/login"];
 
 // Static assets and Next.js internals
 const publicPatterns = [
@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Allow public patterns (static assets, etc.)
-  if (publicPatterns.some(pattern => pattern.test(pathname))) {
+  if (publicPatterns.some((pattern) => pattern.test(pathname))) {
     return NextResponse.next();
   }
 
@@ -42,11 +42,11 @@ export async function middleware(request: NextRequest) {
 }
 
 function redirectToLogin(request: NextRequest) {
-  const loginUrl = new URL('/login', request.url);
+  const loginUrl = new URL("/login", request.url);
 
   // Preserve original destination for redirect after login
-  if (request.nextUrl.pathname !== '/') {
-    loginUrl.searchParams.set('from', request.nextUrl.pathname);
+  if (request.nextUrl.pathname !== "/") {
+    loginUrl.searchParams.set("from", request.nextUrl.pathname);
   }
 
   return NextResponse.redirect(loginUrl);
@@ -61,6 +61,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

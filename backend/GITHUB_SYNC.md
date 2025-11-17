@@ -45,9 +45,9 @@ Edit `backend/src/config/sources.ts` to add or modify question sources:
 ```typescript
 export const QUESTION_SOURCES: QuestionSource[] = [
   {
-    id: 'backend-interview',
-    name: 'Back-End Developer Interview Questions',
-    url: 'https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md',
+    id: "backend-interview",
+    name: "Back-End Developer Interview Questions",
+    url: "https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md",
   },
   // Add more sources here
 ];
@@ -106,6 +106,7 @@ Updated: 0
 ## Question ID Generation
 
 Questions are identified by a SHA-256 hash of the question text. This means:
+
 - Duplicate questions are automatically updated, not re-inserted
 - Changing a question's text will create a new entry
 - Answers can be updated without creating duplicates
@@ -113,6 +114,7 @@ Questions are identified by a SHA-256 hash of the question text. This means:
 ## Costs
 
 The sync uses OpenAI's API. Approximate costs (as of 2024):
+
 - **gpt-4o-mini**: ~$0.15 per 1M input tokens
 - A typical markdown file with ~50K characters ≈ ~12K tokens
 - Cost per sync: < $0.01 for most repositories
@@ -152,6 +154,7 @@ Make sure you created `.dev.vars` and added your API key.
 To use in production:
 
 1. Set secrets in Cloudflare:
+
    ```bash
    npx wrangler secret put OPENAI_API_KEY
    npx wrangler secret put GITHUB_TOKEN  # if needed
@@ -165,6 +168,7 @@ To use in production:
 ## Scheduling
 
 To run syncs automatically, you can:
+
 - Set up a cron trigger in `wrangler.toml`
 - Use GitHub Actions to run the script periodically
 - Manually run as needed
