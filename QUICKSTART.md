@@ -14,17 +14,17 @@ This is a monorepo with separate frontend and backend:
 From the project root:
 
 ```bash
-npm run install:all
+pnpm install
 ```
 
 Or install individually:
 
 ```bash
 # Frontend
-cd frontend && npm install
+cd frontend && pnpm install
 
 # Backend
-cd backend && npm install
+cd backend && pnpm install
 ```
 
 ## 2. Set Up Environment Variables
@@ -61,8 +61,8 @@ Initialize the local D1 database:
 
 ```bash
 cd backend
-npm run db:migrate
-npm run db:seed  # Optional: add sample data
+pnpm db:migrate
+pnpm db:seed  # Optional: add sample data
 ```
 
 ## 4. Run Development Servers
@@ -71,7 +71,7 @@ npm run db:seed  # Optional: add sample data
 
 ```bash
 cd frontend
-npm run dev
+pnpm dev
 ```
 
 Visit: http://localhost:3000
@@ -80,7 +80,7 @@ Visit: http://localhost:3000
 
 ```bash
 cd backend
-npm run dev
+pnpm dev
 ```
 
 API available at: http://localhost:8787
@@ -89,12 +89,12 @@ API available at: http://localhost:8787
 
 Terminal 1:
 ```bash
-cd frontend && npm run dev
+cd frontend && pnpm dev
 ```
 
 Terminal 2:
 ```bash
-cd backend && npm run dev
+cd backend && pnpm dev
 ```
 
 ## 5. Login
@@ -119,7 +119,7 @@ Frontend runs on port 3000, backend on 8787. If these ports are in use:
 ```bash
 # Frontend: specify port
 cd frontend
-PORT=3001 npm run dev
+PORT=3001 pnpm dev
 
 # Backend: edit wrangler.toml
 ```
@@ -129,7 +129,7 @@ PORT=3001 npm run dev
 ```bash
 cd backend
 rm -rf .wrangler  # Remove local state
-npm run db:migrate  # Try again
+pnpm db:migrate  # Try again
 ```
 
 ### Authentication Not Working
@@ -142,17 +142,17 @@ npm run db:migrate  # Try again
 
 ```bash
 # From root
-npm run dev              # Run frontend
-npm run dev:frontend     # Run frontend
-npm run dev:backend      # Run backend
+pnpm dev              # Run frontend
+pnpm dev:frontend     # Run frontend
+pnpm dev:backend      # Run backend
 
 # Frontend specific
 cd frontend
-npm run build           # Build for production
-npm run pages:build     # Build for Cloudflare Pages
+pnpm build           # Build for production
+pnpm pages:build     # Build for Cloudflare Pages
 
 # Backend specific
 cd backend
-npm run deploy          # Deploy to Cloudflare
-npm run db:migrate:prod # Run migrations on production
+pnpm deploy          # Deploy to Cloudflare
+pnpm db:migrate:prod # Run migrations on production
 ```

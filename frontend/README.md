@@ -24,16 +24,16 @@ A single-page application for spaced repetition study sessions with interview qu
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Run development server
-npm run dev
+pnpm dev
 
 # Build for production
-npm run build
+pnpm build
 
 # Build for Cloudflare Pages
-npm run pages:build
+pnpm pages:build
 ```
 
 The app will be available at `http://localhost:3000`.
@@ -96,7 +96,7 @@ Default credentials (development):
 Deploy to Cloudflare Pages:
 
 ```bash
-npm run pages:build
+pnpm pages:build
 wrangler pages deploy
 ```
 

@@ -3,18 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "Spaced repetition app for interview questions - Full Stack Application",
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace=frontend",
-    "dev:backend": "npm run dev --workspace=backend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspaces",
-    "build:frontend": "npm run build --workspace=frontend",
-    "build:backend": "npm run deploy --workspace=backend",
-    "install:all": "npm install --workspaces"
+    "dev": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter anki-interview-backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build": "pnpm -r build",
+    "build:frontend": "pnpm --filter frontend build",
+    "build:backend": "pnpm --filter anki-interview-backend deploy",
+    "install:all": "pnpm install"
   },
   "author": "",
   "license": "MIT"
