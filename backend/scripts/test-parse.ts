@@ -1,4 +1,4 @@
-import { parseQuestionsWithOpenAI } from '../src/lib/openai-parser';
+import { parseQuestionsWithOpenAI } from "../src/lib/openai-parser";
 
 const sampleMarkdown = `
 # Interview Questions
@@ -22,18 +22,22 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const apiKey = env.OPENAI_API_KEY;
-    const model = env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = env.OPENAI_MODEL || "gpt-4o-mini";
 
     try {
-      console.log('Testing OpenAI parsing...\n');
-      const questions = await parseQuestionsWithOpenAI(sampleMarkdown, apiKey, model);
-      console.log('Parsed questions:', JSON.stringify(questions, null, 2));
+      console.log("Testing OpenAI parsing...\n");
+      const questions = await parseQuestionsWithOpenAI(
+        sampleMarkdown,
+        apiKey,
+        model
+      );
+      console.log("Parsed questions:", JSON.stringify(questions, null, 2));
 
       return new Response(JSON.stringify(questions, null, 2), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       return new Response(`Error: ${error}`, { status: 500 });
     }
   },

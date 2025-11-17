@@ -1,6 +1,7 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import globals from "globals";
+import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
   // Ignore patterns
@@ -82,5 +83,8 @@ export default tseslint.config(
         ...globals.node,
       },
     },
-  }
+  },
+
+  // Prettier config - must be last to disable conflicting rules
+  prettierConfig
 );

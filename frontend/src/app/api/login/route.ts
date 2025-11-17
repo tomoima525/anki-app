@@ -1,5 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyCredentials, createSession, getSessionCookieConfig } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  verifyCredentials,
+  createSession,
+  getSessionCookieConfig,
+} from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +13,7 @@ export async function POST(request: NextRequest) {
     // Validate input
     if (!username || !password) {
       return NextResponse.json(
-        { error: 'Username and password required' },
+        { error: "Username and password required" },
         { status: 400 }
       );
     }
@@ -19,10 +23,10 @@ export async function POST(request: NextRequest) {
 
     if (!isValid) {
       // Add delay to prevent timing attacks
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: "Invalid credentials" },
         { status: 401 }
       );
     }
@@ -32,19 +36,15 @@ export async function POST(request: NextRequest) {
     const { name, options } = getSessionCookieConfig();
 
     // Create response with cookie
-    const response = NextResponse.json(
-      { success: true },
-      { status: 200 }
-    );
+    const response = NextResponse.json({ success: true }, { status: 200 });
 
     response.cookies.set(name, token, options);
 
     return response;
-
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

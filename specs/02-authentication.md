@@ -1,9 +1,11 @@
 # Authentication Implementation Spec
 
 ## Overview
+
 Implement single-user authentication using environment variables, session cookies, and middleware protection for all routes.
 
 ## Prerequisites
+
 - Next.js App Router configured
 - Environment variables support (Cloudflare)
 - Database setup completed
@@ -22,6 +24,7 @@ Implement single-user authentication using environment variables, session cookie
 ### 1. Environment Configuration
 
 #### 1.1 Define environment variables
+
 **Location:** `.env.local` (for development)
 
 ```env
@@ -36,18 +39,21 @@ SESSION_MAX_AGE=604800 # 7 days in seconds
 ```
 
 **Tasks:**
+
 - [ ] Create `.env.local` file
 - [ ] Generate strong SESSION_SECRET (min 32 characters)
 - [ ] Hash password using bcrypt
 - [ ] Add `.env.local` to `.gitignore`
 
 **Password hashing helper:**
+
 ```bash
 # Use this Node.js script to generate password hash
 node -e "const bcrypt = require('bcrypt'); bcrypt.hash('your-password', 10).then(console.log);"
 ```
 
 #### 1.2 Configure Cloudflare environment variables
+
 **Location:** Cloudflare dashboard or wrangler
 
 ```bash
@@ -58,6 +64,7 @@ npx wrangler secret put SESSION_SECRET
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Development env vars configured
 - [ ] Production secrets set in Cloudflare
 - [ ] Secrets not committed to git
@@ -65,11 +72,12 @@ npx wrangler secret put SESSION_SECRET
 ### 2. Session Management
 
 #### 2.1 Create session utilities
+
 **Location:** `/src/lib/auth.ts`
 
 ```typescript
-import { SignJWT, jwtVerify } from 'jose';
-import bcrypt from 'bcrypt';
+import { SignJWT, jwtVerify } from "jose";
+import bcrypt from "bcrypt";
 
 interface SessionPayload {
   username: string;
@@ -83,8 +91,8 @@ function getEnv() {
     username: process.env.APP_USERNAME!,
     passwordHash: process.env.APP_PASSWORD_HASH!,
     sessionSecret: process.env.SESSION_SECRET!,
-    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || '604800', 10),
-    cookieName: process.env.SESSION_COOKIE_NAME || 'anki_session',
+    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || "604800", 10),
+    cookieName: process.env.SESSION_COOKIE_NAME || "anki_session",
   };
 }
 
@@ -108,7 +116,7 @@ export async function createSession(username: string): Promise<string> {
   const secret = new TextEncoder().encode(env.sessionSecret);
 
   const token = await new SignJWT({ username })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${env.sessionMaxAge}s`)
     .sign(secret);
@@ -117,7 +125,9 @@ export async function createSession(username: string): Promise<string> {
 }
 
 // Verify session token
-export async function verifySession(token: string): Promise<SessionPayload | null> {
+export async function verifySession(
+  token: string
+): Promise<SessionPayload | null> {
   try {
     const env = getEnv();
     const secret = new TextEncoder().encode(env.sessionSecret);
@@ -138,22 +148,24 @@ export function getSessionCookieConfig() {
     name: env.cookieName,
     options: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
       maxAge: env.sessionMaxAge,
-      path: '/',
+      path: "/",
     },
   };
 }
 ```
 
 **Dependencies to install:**
+
 ```bash
 npm install jose bcrypt
 npm install -D @types/bcrypt
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Session creation function implemented
 - [ ] Session verification function implemented
 - [ ] Credential verification using bcrypt
@@ -161,11 +173,12 @@ npm install -D @types/bcrypt
 - [ ] Cookie configuration helper
 
 #### 2.2 Create session helper for route handlers
+
 **Location:** `/src/lib/session.ts`
 
 ```typescript
-import { cookies } from 'next/headers';
-import { verifySession, getSessionCookieConfig } from './auth';
+import { cookies } from "next/headers";
+import { verifySession, getSessionCookieConfig } from "./auth";
 
 export async function getSession() {
   const cookieStore = cookies();
@@ -183,7 +196,7 @@ export async function requireSession() {
   const session = await getSession();
 
   if (!session) {
-    throw new Error('Unauthorized');
+    throw new Error("Unauthorized");
   }
 
   return session;
@@ -191,6 +204,7 @@ export async function requireSession() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Can retrieve session from cookies
 - [ ] Session verification integrated
 - [ ] Helper for requiring authentication
@@ -198,11 +212,16 @@ export async function requireSession() {
 ### 3. Authentication API Routes
 
 #### 3.1 Login endpoint
+
 **Location:** `/src/app/api/login/route.ts`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyCredentials, createSession, getSessionCookieConfig } from '@/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  verifyCredentials,
+  createSession,
+  getSessionCookieConfig,
+} from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -212,7 +231,7 @@ export async function POST(request: NextRequest) {
     // Validate input
     if (!username || !password) {
       return NextResponse.json(
-        { error: 'Username and password required' },
+        { error: "Username and password required" },
         { status: 400 }
       );
     }
@@ -222,10 +241,10 @@ export async function POST(request: NextRequest) {
 
     if (!isValid) {
       // Add delay to prevent timing attacks
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: "Invalid credentials" },
         { status: 401 }
       );
     }
@@ -235,19 +254,15 @@ export async function POST(request: NextRequest) {
     const { name, options } = getSessionCookieConfig();
 
     // Create response with cookie
-    const response = NextResponse.json(
-      { success: true },
-      { status: 200 }
-    );
+    const response = NextResponse.json({ success: true }, { status: 200 });
 
     response.cookies.set(name, token, options);
 
     return response;
-
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -255,6 +270,7 @@ export async function POST(request: NextRequest) {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Accepts username and password
 - [ ] Validates credentials
 - [ ] Creates session token
@@ -263,24 +279,22 @@ export async function POST(request: NextRequest) {
 - [ ] Has timing attack mitigation
 
 #### 3.2 Logout endpoint
+
 **Location:** `/src/app/api/logout/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { getSessionCookieConfig } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import { getSessionCookieConfig } from "@/lib/auth";
 
 export async function POST() {
   const { name } = getSessionCookieConfig();
 
-  const response = NextResponse.json(
-    { success: true },
-    { status: 200 }
-  );
+  const response = NextResponse.json({ success: true }, { status: 200 });
 
   // Clear cookie by setting maxAge to 0
-  response.cookies.set(name, '', {
+  response.cookies.set(name, "", {
     maxAge: 0,
-    path: '/',
+    path: "/",
   });
 
   return response;
@@ -288,24 +302,23 @@ export async function POST() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Clears session cookie
 - [ ] Returns success response
 
 #### 3.3 Session check endpoint (optional)
+
 **Location:** `/src/app/api/auth/session/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/session';
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
   const session = await getSession();
 
   if (!session) {
-    return NextResponse.json(
-      { authenticated: false },
-      { status: 401 }
-    );
+    return NextResponse.json({ authenticated: false }, { status: 401 });
   }
 
   return NextResponse.json({
@@ -316,21 +329,23 @@ export async function GET() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Returns current session status
 - [ ] Useful for client-side checks
 
 ### 4. Middleware Protection
 
 #### 4.1 Create authentication middleware
+
 **Location:** `/src/middleware.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { verifySession, getSessionCookieConfig } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifySession, getSessionCookieConfig } from "@/lib/auth";
 
 // Routes that don't require authentication
-const publicPaths = ['/login', '/api/login'];
+const publicPaths = ["/login", "/api/login"];
 
 // Static assets and Next.js internals
 const publicPatterns = [
@@ -346,7 +361,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Allow public patterns (static assets, etc.)
-  if (publicPatterns.some(pattern => pattern.test(pathname))) {
+  if (publicPatterns.some((pattern) => pattern.test(pathname))) {
     return NextResponse.next();
   }
 
@@ -369,11 +384,11 @@ export async function middleware(request: NextRequest) {
 }
 
 function redirectToLogin(request: NextRequest) {
-  const loginUrl = new URL('/login', request.url);
+  const loginUrl = new URL("/login", request.url);
 
   // Preserve original destination for redirect after login
-  if (request.nextUrl.pathname !== '/') {
-    loginUrl.searchParams.set('from', request.nextUrl.pathname);
+  if (request.nextUrl.pathname !== "/") {
+    loginUrl.searchParams.set("from", request.nextUrl.pathname);
   }
 
   return NextResponse.redirect(loginUrl);
@@ -388,12 +403,13 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Middleware protects all routes except login
 - [ ] Allows static assets
 - [ ] Redirects to login when not authenticated
@@ -403,6 +419,7 @@ export const config = {
 ### 5. Login Page UI
 
 #### 5.1 Create login page
+
 **Location:** `/src/app/login/page.tsx`
 
 ```typescript
@@ -515,6 +532,7 @@ export default function LoginPage() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Login form with username/password
 - [ ] Calls POST /api/login
 - [ ] Displays errors
@@ -524,6 +542,7 @@ export default function LoginPage() {
 - [ ] Disabled state prevents double-submit
 
 #### 5.2 Add logout button component
+
 **Location:** `/src/components/LogoutButton.tsx`
 
 ```typescript
@@ -555,6 +574,7 @@ export default function LogoutButton() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Logout button component created
 - [ ] Calls logout API
 - [ ] Redirects to login page
@@ -564,6 +584,7 @@ export default function LogoutButton() {
 #### 6.1 Manual testing checklist
 
 **Login flow:**
+
 - [ ] Navigate to any protected route → redirects to /login
 - [ ] Submit with empty credentials → shows error
 - [ ] Submit with wrong password → shows "Invalid credentials"
@@ -572,17 +593,20 @@ export default function LogoutButton() {
 - [ ] Verify cookie is HTTP-only and Secure (in production)
 
 **Protected routes:**
+
 - [ ] After login, can access /study
 - [ ] After login, can access /questions
 - [ ] After login, can access /settings
 - [ ] API routes require authentication
 
 **Logout flow:**
+
 - [ ] Click logout → redirects to /login
 - [ ] Cookie is cleared
 - [ ] Cannot access protected routes after logout
 
 **Session persistence:**
+
 - [ ] Close and reopen browser → still logged in
 - [ ] Session expires after configured time
 - [ ] Invalid token → redirects to login
@@ -606,14 +630,12 @@ try {
   const session = await requireSession();
   // ... protected logic
 } catch (error) {
-  return NextResponse.json(
-    { error: 'Unauthorized' },
-    { status: 401 }
-  );
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 ```
 
 **Handle:**
+
 - [ ] Missing credentials → 400 Bad Request
 - [ ] Invalid credentials → 401 Unauthorized
 - [ ] Expired session → 401 Unauthorized
@@ -647,6 +669,7 @@ try {
 ## Next Steps
 
 After authentication is complete:
+
 1. Add authentication checks to all API routes
 2. Add logout button to main navigation
 3. Implement GitHub sync (authenticated endpoint)

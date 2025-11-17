@@ -1,5 +1,5 @@
-import { SignJWT, jwtVerify } from 'jose';
-import bcrypt from 'bcrypt';
+import { SignJWT, jwtVerify } from "jose";
+import bcrypt from "bcrypt";
 
 interface SessionPayload {
   username: string;
@@ -13,8 +13,8 @@ function getEnv() {
     username: process.env.APP_USERNAME!,
     passwordHash: process.env.APP_PASSWORD_HASH!,
     sessionSecret: process.env.SESSION_SECRET!,
-    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || '604800', 10),
-    cookieName: process.env.SESSION_COOKIE_NAME || 'anki_session',
+    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || "604800", 10),
+    cookieName: process.env.SESSION_COOKIE_NAME || "anki_session",
   };
 }
 
@@ -38,7 +38,7 @@ export async function createSession(username: string): Promise<string> {
   const secret = new TextEncoder().encode(env.sessionSecret);
 
   const token = await new SignJWT({ username })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${env.sessionMaxAge}s`)
     .sign(secret);
@@ -47,7 +47,9 @@ export async function createSession(username: string): Promise<string> {
 }
 
 // Verify session token
-export async function verifySession(token: string): Promise<SessionPayload | null> {
+export async function verifySession(
+  token: string
+): Promise<SessionPayload | null> {
   try {
     const env = getEnv();
     const secret = new TextEncoder().encode(env.sessionSecret);
@@ -68,10 +70,10 @@ export function getSessionCookieConfig() {
     name: env.cookieName,
     options: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
       maxAge: env.sessionMaxAge,
-      path: '/',
+      path: "/",
     },
   };
 }

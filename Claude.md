@@ -23,6 +23,7 @@ anki-interview-app/
 ## Tech Stack
 
 ### Frontend
+
 - **Framework**: Next.js 15 (App Router)
 - **Styling**: Tailwind CSS 4
 - **Authentication**: JWT with HTTP-only cookies (using `jose` library)
@@ -31,6 +32,7 @@ anki-interview-app/
 - **Language**: TypeScript
 
 ### Backend
+
 - **Runtime**: Cloudflare Workers
 - **Framework**: Hono (lightweight web framework)
 - **Database**: Cloudflare D1 (SQLite)
@@ -45,6 +47,7 @@ anki-interview-app/
 ## Development Commands
 
 ### Root Level
+
 ```bash
 # Install all dependencies
 pnpm install
@@ -65,6 +68,7 @@ pnpm build:backend
 ```
 
 ### Frontend (from `/frontend` directory)
+
 ```bash
 # Development server (http://localhost:3000)
 pnpm dev
@@ -83,6 +87,7 @@ pnpm lint
 ```
 
 ### Backend (from `/backend` directory)
+
 ```bash
 # Development server
 pnpm dev
@@ -107,6 +112,7 @@ pnpm sync
 ## Project Structure
 
 ### Frontend Structure
+
 ```
 frontend/
 ├── src/
@@ -126,6 +132,7 @@ frontend/
 ```
 
 ### Backend Structure
+
 ```
 backend/
 ├── src/
@@ -155,6 +162,7 @@ Migration files are in `backend/db/migrations/`. Always create new migrations fo
 ## Environment Variables
 
 ### Frontend (`frontend/.env.local`)
+
 ```env
 APP_USERNAME=admin
 APP_PASSWORD_HASH=$2b$10$...
@@ -164,7 +172,9 @@ SESSION_MAX_AGE=604800
 ```
 
 ### Backend
+
 Backend uses Cloudflare Workers secrets (set via `wrangler secret put`):
+
 - `APP_USERNAME`
 - `APP_PASSWORD_HASH`
 - `SESSION_SECRET`
@@ -182,12 +192,14 @@ Backend uses Cloudflare Workers secrets (set via `wrangler secret put`):
 ## Default Credentials
 
 For local development:
+
 - Username: `admin`
 - Password: `admin123`
 
 ## Documentation
 
 Detailed specifications are in the `specs/` directory:
+
 - `01-database-setup.md` - Database schema and setup
 - `02-authentication.md` - Authentication implementation
 - `03-github-sync.md` - GitHub integration
@@ -207,19 +219,23 @@ Detailed specifications are in the `specs/` directory:
 ## Common Tasks
 
 ### Adding a new frontend page
+
 1. Create file in `frontend/src/app/[page-name]/page.tsx`
 2. Update middleware if authentication is required
 
 ### Adding a new API endpoint
+
 1. Add route handler in `backend/src/routes/`
 2. Register route in `backend/src/index.ts`
 
 ### Modifying database schema
+
 1. Create new migration in `backend/db/migrations/`
 2. Run `pnpm db:migrate` to apply locally
 3. Use `pnpm db:migrate:prod` for production
 
 ### Testing changes
+
 - Frontend: Run `pnpm dev` in frontend directory
 - Backend: Run `pnpm dev` in backend directory
 - Test locally before deploying to Cloudflare

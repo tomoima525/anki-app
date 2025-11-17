@@ -5,6 +5,7 @@ Cloudflare Workers backend with D1 database for the Anki Interview App.
 ## Overview
 
 This backend provides API endpoints for:
+
 - Question management (CRUD operations)
 - Study session tracking
 - Answer logging
@@ -35,6 +36,7 @@ pnpm db:seed
 ## Database
 
 Database schema and migrations are located in `db/`:
+
 - `db/schema.sql` - Complete database schema
 - `db/migrations/` - Migration files
 - `db/seed.sql` - Sample data for development
@@ -52,13 +54,14 @@ pnpm db:migrate:prod
 ## Environment Variables
 
 Required secrets (set via `wrangler secret put`):
+
 - `APP_USERNAME` - Admin username
 - `APP_PASSWORD_HASH` - Bcrypt hash of admin password
 - `SESSION_SECRET` - JWT signing secret
 
 ## API Endpoints
 
-*To be implemented based on specs*
+_To be implemented based on specs_
 
 - `GET /api/questions` - List questions
 - `GET /api/questions/:id` - Get question details

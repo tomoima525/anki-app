@@ -1,9 +1,11 @@
 # Settings & Admin Implementation Spec
 
 ## Overview
+
 Implement the settings/admin page for syncing questions, managing configuration, and viewing system status.
 
 ## Prerequisites
+
 - Database setup completed
 - Authentication implemented
 - GitHub sync API implemented
@@ -21,6 +23,7 @@ Implement the settings/admin page for syncing questions, managing configuration,
 ### 1. Settings Page UI
 
 #### 1.1 Create settings page
+
 **Location:** `/src/app/settings/page.tsx`
 
 ```typescript
@@ -259,6 +262,7 @@ export default function SettingsPage() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Displays system status (question count, last sync)
 - [ ] Sync button triggers GitHub sync
 - [ ] Shows sync progress/loading state
@@ -270,6 +274,7 @@ export default function SettingsPage() {
 ### 2. Enhanced Status Tracking
 
 #### 2.1 Add sync metadata table (optional)
+
 **Location:** `/db/migrations/0002_sync_metadata.sql`
 
 ```sql
@@ -330,34 +335,32 @@ await db
          error_message = ?
      WHERE id = ?`
   )
-  .bind(
-    new Date().toISOString(),
-    error.message,
-    syncId.id
-  )
+  .bind(new Date().toISOString(), error.message, syncId.id)
   .run();
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Sync history tracked in database
 - [ ] Can query sync history
 - [ ] Useful for debugging sync issues
 
 #### 2.2 Sync history endpoint
+
 **Location:** `/src/app/api/sync/history/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
+import { getDB } from "@/lib/db";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 interface SyncHistory {
   id: number;
   started_at: string;
   completed_at: string | null;
-  status: 'running' | 'completed' | 'failed';
+  status: "running" | "completed" | "failed";
   sources_count: number | null;
   questions_inserted: number | null;
   questions_updated: number | null;
@@ -382,17 +385,13 @@ export async function GET() {
     return NextResponse.json({
       history: history.results || [],
     });
-
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Failed to get sync history' },
+      { error: "Failed to get sync history" },
       { status: 500 }
     );
   }
@@ -402,6 +401,7 @@ export async function GET() {
 ### 3. Navigation Component
 
 #### 3.1 Create global navigation
+
 **Location:** `/src/components/Navigation.tsx`
 
 ```typescript
@@ -467,6 +467,7 @@ export default function Navigation() {
 ```
 
 **Usage in layout:**
+
 ```typescript
 // /src/app/layout.tsx or specific page layouts
 import Navigation from '@/components/Navigation';
@@ -482,6 +483,7 @@ export default function Layout({ children }) {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Navigation visible on all pages
 - [ ] Active page highlighted
 - [ ] Logout button accessible
@@ -490,14 +492,15 @@ export default function Layout({ children }) {
 ### 4. Home Page / Dashboard
 
 #### 4.1 Create home page
+
 **Location:** `/src/app/page.tsx`
 
 ```typescript
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
   // Redirect to study page by default
-  redirect('/study');
+  redirect("/study");
 }
 ```
 
@@ -579,6 +582,7 @@ export default function HomePage() {
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Homepage accessible
 - [ ] Shows overview stats
 - [ ] Quick links to study and questions
@@ -589,6 +593,7 @@ export default function HomePage() {
 #### 5.1 Manual testing checklist
 
 **Settings page:**
+
 - [ ] Navigate to /settings
 - [ ] System status displays correctly
 - [ ] Click "Sync from GitHub" → sync runs
@@ -601,12 +606,14 @@ export default function HomePage() {
 - [ ] Logout button works
 
 **Navigation:**
+
 - [ ] Navigation appears on all pages
 - [ ] Active page highlighted
 - [ ] All links work
 - [ ] Responsive on mobile
 
 **Home page:**
+
 - [ ] Displays dashboard stats
 - [ ] Quick action links work
 
@@ -615,6 +622,7 @@ export default function HomePage() {
 #### 6.1 Environment variables checklist
 
 Ensure these are set in Cloudflare:
+
 - [ ] `APP_USERNAME`
 - [ ] `APP_PASSWORD_HASH`
 - [ ] `SESSION_SECRET`
@@ -625,6 +633,7 @@ Ensure these are set in Cloudflare:
 #### 6.2 Deployment configuration
 
 **wrangler.toml:**
+
 ```toml
 name = "anki-interview-app"
 compatibility_date = "2024-01-01"
@@ -645,6 +654,7 @@ database_id = "..." # Your production database ID
 ```
 
 **Deployment commands:**
+
 ```bash
 # Build and deploy
 npm run build
@@ -702,6 +712,7 @@ npx wrangler pages deploy
 ## Complete Application Checklist
 
 ### Core Features
+
 - [x] User authentication
 - [x] GitHub sync
 - [x] Study flashcard flow
@@ -709,11 +720,13 @@ npx wrangler pages deploy
 - [x] Settings management
 
 ### Database
+
 - [x] D1 database setup
 - [x] Migrations run
 - [x] Schema validated
 
 ### API Endpoints
+
 - [x] POST /api/login
 - [x] POST /api/logout
 - [x] POST /api/sync
@@ -725,6 +738,7 @@ npx wrangler pages deploy
 - [x] GET /api/questions/stats
 
 ### Pages
+
 - [x] /login
 - [x] /study
 - [x] /questions
@@ -732,6 +746,7 @@ npx wrangler pages deploy
 - [x] /settings
 
 ### Security
+
 - [x] Middleware protection
 - [x] Session management
 - [x] Secure cookies
@@ -740,6 +755,7 @@ npx wrangler pages deploy
 ## Next Steps
 
 After completing all specs:
+
 1. Begin implementation following each spec in order
 2. Test each component before moving to next
 3. Deploy to Cloudflare Pages
