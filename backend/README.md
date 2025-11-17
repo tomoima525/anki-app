@@ -20,16 +20,16 @@ This backend provides API endpoints for:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Run local development server
-npm run dev
+pnpm dev
 
 # Apply database migrations (local)
-npm run db:migrate
+pnpm db:migrate
 
 # Seed database with sample data
-npm run db:seed
+pnpm db:seed
 ```
 
 ## Database
@@ -43,10 +43,10 @@ Database schema and migrations are located in `db/`:
 
 ```bash
 # Deploy to Cloudflare
-npm run deploy
+pnpm deploy
 
 # Apply migrations to production
-npm run db:migrate:prod
+pnpm db:migrate:prod
 ```
 
 ## Environment Variables

@@ -41,9 +41,9 @@ anki-interview-app/
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 18+ and pnpm
 - Cloudflare account (for deployment)
-- Wrangler CLI (`npm install -g wrangler`)
+- Wrangler CLI (`pnpm add -g wrangler`)
 
 ### Installation
 
@@ -53,7 +53,7 @@ git clone <repository-url>
 cd anki-interview-app
 
 # Install all dependencies (frontend + backend)
-npm run install:all
+pnpm install
 ```
 
 ### Development
@@ -61,8 +61,12 @@ npm run install:all
 #### Run Frontend
 
 ```bash
+# From root directory
+pnpm dev:frontend
+
+# Or from frontend directory
 cd frontend
-npm run dev
+pnpm dev
 ```
 
 Visit `http://localhost:3000`
@@ -74,13 +78,17 @@ Default credentials:
 #### Run Backend
 
 ```bash
+# From root directory
+pnpm dev:backend
+
+# Or from backend directory
 cd backend
 
 # Apply database migrations
-npm run db:migrate
+pnpm db:migrate
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 ### Environment Setup
@@ -145,10 +153,10 @@ See `backend/db/schema.sql` for the complete schema.
 cd backend
 
 # Local development
-npm run db:migrate
+pnpm db:migrate
 
 # Production
-npm run db:migrate:prod
+pnpm db:migrate:prod
 ```
 
 ## Deployment
@@ -157,7 +165,7 @@ npm run db:migrate:prod
 
 ```bash
 cd frontend
-npm run pages:build
+pnpm pages:build
 wrangler pages deploy
 ```
 
@@ -165,7 +173,7 @@ wrangler pages deploy
 
 ```bash
 cd backend
-npm run deploy
+pnpm deploy
 ```
 
 ## Development Roadmap
