@@ -1,19 +1,19 @@
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import globals from 'globals';
+import eslint from "@eslint/js";
+import tseslint from "typescript-eslint";
+import globals from "globals";
 
 export default tseslint.config(
   // Ignore patterns
   {
     ignores: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/.next/**',
-      '**/build/**',
-      '**/.wrangler/**',
-      '**/pnpm-lock.yaml',
-      '**/*.config.js',
-      '**/*.config.mjs',
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/build/**",
+      "**/.wrangler/**",
+      "**/pnpm-lock.yaml",
+      "**/*.config.js",
+      "**/*.config.mjs",
     ],
   },
 
@@ -25,13 +25,13 @@ export default tseslint.config(
 
   // Global configuration for all TypeScript files
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'module',
+      sourceType: "module",
       parser: tseslint.parser,
       parserOptions: {
-        project: ['./frontend/tsconfig.json', './backend/tsconfig.json'],
+        project: ["./frontend/tsconfig.json", "./backend/tsconfig.json"],
         tsconfigRootDir: import.meta.dirname,
       },
       globals: {
@@ -41,28 +41,27 @@ export default tseslint.config(
     },
     rules: {
       // TypeScript specific rules
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
         {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
         },
       ],
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+      "@typescript-eslint/no-non-null-assertion": "warn",
 
       // General code quality rules
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      'prefer-const': 'warn',
-      'no-var': 'error',
+      "prefer-const": "warn",
+      "no-var": "error",
     },
   },
 
   // Frontend-specific configuration (Next.js/React)
   {
-    files: ['frontend/**/*.ts', 'frontend/**/*.tsx'],
+    files: ["frontend/**/*.ts", "frontend/**/*.tsx"],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -71,13 +70,13 @@ export default tseslint.config(
     },
     rules: {
       // Allow console in development
-      'no-console': 'off',
+      "no-console": "off",
     },
   },
 
   // Backend-specific configuration (Cloudflare Workers)
   {
-    files: ['backend/**/*.ts'],
+    files: ["backend/**/*.ts"],
     languageOptions: {
       globals: {
         ...globals.node,
