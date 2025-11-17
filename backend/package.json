@@ -9,10 +9,14 @@
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply anki-interview-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply anki-interview-db-prod --remote",
-    "db:seed": "wrangler d1 execute anki-interview-db --local --file=./db/seed.sql"
+    "db:seed": "wrangler d1 execute anki-interview-db --local --file=./db/seed.sql",
+    "sync": "wrangler dev scripts/sync-github.ts --remote --test-scheduled",
+    "sync:local": "wrangler dev --local scripts/sync-github.ts --test-scheduled",
+    "test:parse": "wrangler dev --local scripts/test-parse.ts --test-scheduled"
   },
   "dependencies": {
-    "hono": "^4.0.0"
+    "hono": "^4.0.0",
+    "openai": "^6.9.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",

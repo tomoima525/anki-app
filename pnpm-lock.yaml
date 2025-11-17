@@ -13,6 +13,9 @@ importers:
       hono:
         specifier: ^4.0.0
         version: 4.10.6
+      openai:
+        specifier: ^6.9.0
+        version: 6.9.0(ws@8.18.0)
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20241127.0
@@ -1003,6 +1006,18 @@ packages:
   ohash@2.0.11:
     resolution: {integrity: sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ==}
 
+  openai@6.9.0:
+    resolution: {integrity: sha512-n2sJRYmM+xfJ0l3OfH8eNnIyv3nQY7L08gZQu3dw6wSdfPtKAk92L83M2NIP5SS8Cl/bsBBG3yKzEOjkx0O+7A==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   package-manager-manager@0.2.0:
     resolution: {integrity: sha512-V02gl0bafXJ2gcY6j+5IHM7UdnYwmF+2OsFZuqVcha6iMSStD4dpIOBOsypnUIwOi4jLcPz6RQuyifmAE3mG8g==}
 
@@ -1893,6 +1908,10 @@ snapshots:
   normalize-range@0.1.2: {}
 
   ohash@2.0.11: {}
+
+  openai@6.9.0(ws@8.18.0):
+    optionalDependencies:
+      ws: 8.18.0
 
   package-manager-manager@0.2.0:
     dependencies:
