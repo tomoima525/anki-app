@@ -1,5 +1,6 @@
 name = "anki-interview-app"
 compatibility_date = "2025-01-01"
+main = "src/index.ts"
 
 [[d1_databases]]
 binding = "DB"

@@ -68,9 +68,11 @@ export async function parseQuestionsWithOpenAI(
 
     // Validate structure
     return questions.filter(
-      (q: any) =>
-        q.question &&
-        q.answer &&
+      (q: unknown): q is ParsedQuestion =>
+        typeof q === "object" &&
+        q !== null &&
+        "question" in q &&
+        "answer" in q &&
         typeof q.question === "string" &&
         typeof q.answer === "string"
     );
