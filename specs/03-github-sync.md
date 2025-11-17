@@ -1,12 +1,12 @@
 # GitHub Sync Implementation Spec
 
 ## Overview
-Implement functionality to fetch interview questions from GitHub repositories, parse them using OpenAI API, and store them in the database.
+This document describes how to implement a local script to fetch interview questions from GitHub repositories, parse them using OpenAI API, and store them in the database. The sync runs as a standalone script on your local machine, not as an API endpoint.
 
 ## Prerequisites
 - Database setup completed
-- Authentication implemented
 - OpenAI API access configured
+- Node.js and npm installed locally
 
 ## Source Repository
 
@@ -17,7 +17,7 @@ Implement functionality to fetch interview questions from GitHub repositories, p
 ### 1. Configuration
 
 #### 1.1 Define GitHub source configuration
-**Location:** `/src/config/sources.ts`
+**Location:** `backend/src/config/sources.ts`
 
 ```typescript
 export interface QuestionSource {
@@ -52,7 +52,7 @@ export function getAllSources(): QuestionSource[] {
 - [ ] Extensible for multiple sources
 
 #### 1.2 Add environment variables
-**Location:** `.env.local`
+**Location:** `backend/.dev.vars` (for local development)
 
 ```env
 # OpenAI Configuration
@@ -61,18 +61,28 @@ OPENAI_MODEL=gpt-4o-mini
 
 # GitHub Configuration (optional)
 GITHUB_TOKEN=ghp_... # Optional, for private repos or higher rate limits
+
+# Database Configuration
+DATABASE=your-d1-database
+```
+
+**For production (Cloudflare):**
+```bash
+# Set secrets in Cloudflare
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put GITHUB_TOKEN  # if needed
 ```
 
 **Tasks:**
-- [ ] Add OpenAI API key to environment
+- [ ] Add OpenAI API key to .dev.vars
 - [ ] Configure OpenAI model to use
 - [ ] Optionally add GitHub token
-- [ ] Set in Cloudflare for production: `npx wrangler secret put OPENAI_API_KEY`
+- [ ] Ensure .dev.vars is in .gitignore
 
 ### 2. Markdown Fetching
 
 #### 2.1 Create GitHub fetcher utility
-**Location:** `/src/lib/github.ts`
+**Location:** `backend/src/lib/github.ts`
 
 ```typescript
 export interface FetchResult {
@@ -95,11 +105,7 @@ export async function fetchMarkdownFromGitHub(
   }
 
   try {
-    const response = await fetch(url, {
-      headers,
-      // Cache for 5 minutes to avoid hitting rate limits
-      next: { revalidate: 300 },
-    });
+    const response = await fetch(url, { headers });
 
     if (!response.ok) {
       throw new Error(
@@ -134,13 +140,12 @@ export async function fetchMultipleSources(
 - [ ] Can fetch raw markdown from GitHub
 - [ ] Supports GitHub authentication token
 - [ ] Proper error handling
-- [ ] Caching to avoid rate limits
 - [ ] Supports multiple sources
 
 ### 3. OpenAI Question Parsing
 
 #### 3.1 Create OpenAI parser
-**Location:** `/src/lib/openai-parser.ts`
+**Location:** `backend/src/lib/openai-parser.ts`
 
 ```typescript
 import OpenAI from 'openai';
@@ -150,23 +155,21 @@ export interface ParsedQuestion {
   answer: string;
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 const PARSING_PROMPT = `You are a helpful assistant that extracts interview questions and answers from markdown documents.
 
 Given the markdown content, extract all question-answer pairs. Format your response as a JSON array with this structure:
 
-[
-  {
-    "question": "The question text",
-    "answer": "The answer text"
-  }
-]
+{
+  "questions": [
+    {
+      "question": "The question text",
+      "answer": "The answer text"
+    }
+  ]
+}
 
 Guidelines:
-- Identify questions by common patterns: "Q:", "Question:", bullet points followed by "?", numbered lists
+- Identify questions by common patterns: "Q:", "Question:", bullet points followed by "?", numbered lists, section headings
 - The answer is typically the text following the question until the next question
 - Clean up formatting (remove markdown symbols like *, #, etc. from content)
 - Preserve code blocks in answers
@@ -178,15 +181,19 @@ Here's the markdown content:
 `;
 
 export async function parseQuestionsWithOpenAI(
-  markdown: string
+  markdown: string,
+  apiKey: string,
+  model: string = 'gpt-4o-mini'
 ): Promise<ParsedQuestion[]> {
+  const openai = new OpenAI({ apiKey });
+
   try {
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model,
       messages: [
         {
           role: 'system',
-          content: 'You are a precise question-answer extractor. Always return valid JSON arrays.',
+          content: 'You are a precise question-answer extractor. Always return valid JSON.',
         },
         {
           role: 'user',
@@ -226,13 +233,15 @@ export async function parseQuestionsWithOpenAI(
 // Parse in chunks to avoid token limits
 export async function parseQuestionsInChunks(
   markdown: string,
+  apiKey: string,
+  model: string = 'gpt-4o-mini',
   chunkSize: number = 8000
 ): Promise<ParsedQuestion[]> {
   const chunks = splitMarkdownIntoChunks(markdown, chunkSize);
   const allQuestions: ParsedQuestion[] = [];
 
   for (const chunk of chunks) {
-    const questions = await parseQuestionsWithOpenAI(chunk);
+    const questions = await parseQuestionsWithOpenAI(chunk, apiKey, model);
     allQuestions.push(...questions);
   }
 
@@ -265,7 +274,7 @@ function splitMarkdownIntoChunks(content: string, maxChunkSize: number): string[
 
 **Dependencies:**
 ```bash
-npm install openai
+npm install openai --workspace=backend
 ```
 
 **Acceptance Criteria:**
@@ -279,12 +288,11 @@ npm install openai
 ### 4. Database Upsert Logic
 
 #### 4.1 Create question upsert functions
-**Location:** `/src/lib/questions.ts`
+**Location:** `backend/src/lib/questions.ts`
 
 ```typescript
-import { D1Database } from '@cloudflare/workers-types';
 import { generateQuestionId } from './db';
-import { Question } from '@/types/database';
+import { Question } from '../types/database';
 
 export interface UpsertResult {
   inserted: number;
@@ -378,7 +386,7 @@ export async function batchUpsertQuestions(
   };
 
   const now = new Date().toISOString();
-  const statements: D1PreparedStatement[] = [];
+  const statements = [];
 
   for (const { question, answer } of questions) {
     const id = generateQuestionId(question);
@@ -417,52 +425,67 @@ export async function batchUpsertQuestions(
 - [ ] Handles errors gracefully
 - [ ] Uses stable question ID (hash)
 
-### 5. Sync API Endpoint
+### 5. Sync Script
 
-#### 5.1 Create sync endpoint
-**Location:** `/src/app/api/sync/route.ts`
+#### 5.1 Create the main sync script
+**Location:** `backend/scripts/sync-github.ts`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
-import { fetchMarkdownFromGitHub } from '@/lib/github';
-import { parseQuestionsInChunks } from '@/lib/openai-parser';
-import { batchUpsertQuestions } from '@/lib/questions';
-import { getAllSources } from '@/config/sources';
+import { fetchMarkdownFromGitHub } from '../src/lib/github';
+import { parseQuestionsInChunks } from '../src/lib/openai-parser';
+import { batchUpsertQuestions } from '../src/lib/questions';
+import { getAllSources } from '../src/config/sources';
 
-export const runtime = 'edge';
+interface Env {
+  DB: D1Database;
+  OPENAI_API_KEY: string;
+  OPENAI_MODEL?: string;
+  GITHUB_TOKEN?: string;
+}
 
-export async function POST(request: NextRequest) {
-  try {
-    // Require authentication
-    await requireSession();
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const db = env.DB;
+    const githubToken = env.GITHUB_TOKEN;
+    const apiKey = env.OPENAI_API_KEY;
+    const model = env.OPENAI_MODEL || 'gpt-4o-mini';
 
-    const db = getDB();
-    const githubToken = process.env.GITHUB_TOKEN;
+    if (!apiKey) {
+      console.error('Error: OPENAI_API_KEY is not set');
+      return new Response('Error: OPENAI_API_KEY is not set', { status: 500 });
+    }
 
     // Get all configured sources
     const sources = getAllSources();
 
     if (sources.length === 0) {
-      return NextResponse.json(
-        { error: 'No sources configured' },
-        { status: 400 }
-      );
+      console.error('Error: No sources configured');
+      return new Response('Error: No sources configured', { status: 400 });
     }
+
+    console.log(`Starting sync for ${sources.length} source(s)...\n`);
 
     const results = [];
 
     for (const source of sources) {
+      console.log(`Processing: ${source.name}`);
+      console.log(`URL: ${source.url}`);
+
       try {
         // 1. Fetch markdown
+        console.log('  📥 Fetching markdown...');
         const { content } = await fetchMarkdownFromGitHub(source.url, githubToken);
+        console.log(`  ✓ Fetched ${content.length} characters`);
 
         // 2. Parse with OpenAI
-        const questions = await parseQuestionsInChunks(content);
+        console.log('  🤖 Parsing with OpenAI...');
+        const questions = await parseQuestionsInChunks(content, apiKey, model);
+        console.log(`  ✓ Parsed ${questions.length} questions`);
 
         // 3. Upsert to database
+        console.log('  💾 Upserting to database...');
         const upsertResult = await batchUpsertQuestions(db, questions, source.url);
+        console.log(`  ✓ Inserted: ${upsertResult.inserted}, Updated: ${upsertResult.updated}, Skipped: ${upsertResult.skipped}`);
 
         results.push({
           source: source.name,
@@ -470,12 +493,14 @@ export async function POST(request: NextRequest) {
         });
 
       } catch (error) {
-        console.error(`Failed to sync source ${source.name}:`, error);
+        console.error(`  ✗ Failed to sync source ${source.name}:`, error);
         results.push({
           source: source.name,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
+
+      console.log('');
     }
 
     // Calculate totals
@@ -491,107 +516,117 @@ export async function POST(request: NextRequest) {
       { inserted: 0, updated: 0, total: 0 }
     );
 
-    return NextResponse.json({
+    console.log('=== Sync Complete ===');
+    console.log(`Total questions: ${totals.total}`);
+    console.log(`Inserted: ${totals.inserted}`);
+    console.log(`Updated: ${totals.updated}`);
+
+    const response = {
       success: true,
       results,
       totals,
       timestamp: new Date().toISOString(),
+    };
+
+    return new Response(JSON.stringify(response, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
     });
-
-  } catch (error) {
-    console.error('Sync error:', error);
-
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: 'Sync failed', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
-}
+  },
+};
 ```
 
 **Acceptance Criteria:**
-- [ ] Requires authentication
 - [ ] Fetches from all configured sources
 - [ ] Parses with OpenAI
 - [ ] Upserts to database
 - [ ] Returns detailed results
 - [ ] Handles errors per source
 - [ ] Returns totals across all sources
+- [ ] Provides progress output
 
-#### 5.2 Create sync status endpoint
-**Location:** `/src/app/api/sync/status/route.ts`
+#### 5.2 Add npm script for easy execution
+**Location:** `backend/package.json`
 
-```typescript
-import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
-import { getDB } from '@/lib/db';
+Add to the scripts section:
 
-export const runtime = 'edge';
+```json
+{
+  "scripts": {
+    "sync": "wrangler dev --local scripts/sync-github.ts --test-scheduled"
+  }
+}
+```
 
-export async function GET() {
-  try {
-    await requireSession();
+Or for remote execution against production database:
 
-    const db = getDB();
-
-    // Get total question count
-    const countResult = await db
-      .prepare('SELECT COUNT(*) as count FROM questions')
-      .first<{ count: number }>();
-
-    // Get most recent update
-    const recentResult = await db
-      .prepare('SELECT MAX(updated_at) as last_sync FROM questions')
-      .first<{ last_sync: string | null }>();
-
-    return NextResponse.json({
-      totalQuestions: countResult?.count || 0,
-      lastSync: recentResult?.last_sync || null,
-    });
-
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to get sync status' },
-      { status: 500 }
-    );
+```json
+{
+  "scripts": {
+    "sync": "wrangler dev scripts/sync-github.ts --remote --test-scheduled",
+    "sync:local": "wrangler dev --local scripts/sync-github.ts --test-scheduled"
   }
 }
 ```
 
 **Acceptance Criteria:**
-- [ ] Returns total question count
-- [ ] Returns last sync timestamp
-- [ ] Requires authentication
+- [ ] Script can be run with npm command
+- [ ] Works with local D1 database
+- [ ] Works with remote D1 database
 
-### 6. Testing
+### 6. Running the Script
 
-#### 6.1 Manual testing
+#### 6.1 Local execution (development)
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Install dependencies if not already done
+npm install
+
+# Ensure .dev.vars is configured with OPENAI_API_KEY
+
+# Run the sync script against local database
+npm run sync:local
+
+# Or run against remote database
+npm run sync
+```
+
+#### 6.2 Manual execution with wrangler
+
+```bash
+# From backend directory
+npx wrangler dev --local scripts/sync-github.ts --test-scheduled
+```
+
+This will:
+1. Load environment variables from `.dev.vars`
+2. Connect to your local D1 database
+3. Execute the sync script
+4. Display progress and results in the console
+
+**Acceptance Criteria:**
+- [ ] Script runs successfully from command line
+- [ ] Progress is displayed during execution
+- [ ] Results summary is shown at the end
+- [ ] Questions are inserted into database
+
+### 7. Testing
+
+#### 7.1 Manual testing
 
 **Test GitHub fetch:**
 ```bash
-# Test fetching markdown
+# Test fetching markdown directly
 curl -v "https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md"
 ```
 
-**Test sync endpoint:**
+**Verify database after sync:**
 ```bash
-# Login first, then:
-curl -X POST http://localhost:3000/api/sync \
-  -H "Cookie: anki_session=<your-session-cookie>"
+# From backend directory
+npx wrangler d1 execute anki-db --local --command "SELECT COUNT(*) FROM questions"
+npx wrangler d1 execute anki-db --local --command "SELECT * FROM questions LIMIT 5"
 ```
 
 **Checklist:**
@@ -599,18 +634,18 @@ curl -X POST http://localhost:3000/api/sync \
 - [ ] OpenAI parses questions correctly
 - [ ] Questions inserted into database
 - [ ] Duplicate questions are updated, not duplicated
-- [ ] Sync endpoint returns proper statistics
-- [ ] Sync status endpoint shows correct counts
+- [ ] Script returns proper statistics
 - [ ] Error handling works for network failures
 - [ ] Error handling works for OpenAI failures
 
-#### 6.2 Test with sample data
+#### 7.2 Test with sample data
 
 Create a test file to validate parsing:
 
+**Location:** `backend/scripts/test-parse.ts`
+
 ```typescript
-// test/parse-sample.ts
-import { parseQuestionsWithOpenAI } from '@/lib/openai-parser';
+import { parseQuestionsWithOpenAI } from '../src/lib/openai-parser';
 
 const sampleMarkdown = `
 # Interview Questions
@@ -626,12 +661,35 @@ Explain database indexing
 Database indexing is a technique...
 `;
 
-async function testParsing() {
-  const questions = await parseQuestionsWithOpenAI(sampleMarkdown);
-  console.log('Parsed questions:', JSON.stringify(questions, null, 2));
+interface Env {
+  OPENAI_API_KEY: string;
+  OPENAI_MODEL?: string;
 }
 
-testParsing();
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const apiKey = env.OPENAI_API_KEY;
+    const model = env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    try {
+      console.log('Testing OpenAI parsing...\n');
+      const questions = await parseQuestionsWithOpenAI(sampleMarkdown, apiKey, model);
+      console.log('Parsed questions:', JSON.stringify(questions, null, 2));
+
+      return new Response(JSON.stringify(questions, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      return new Response(`Error: ${error}`, { status: 500 });
+    }
+  },
+};
+```
+
+**Run test:**
+```bash
+npx wrangler dev --local scripts/test-parse.ts --test-scheduled
 ```
 
 **Acceptance Criteria:**
@@ -639,49 +697,49 @@ testParsing();
 - [ ] Questions and answers separated properly
 - [ ] No parsing errors
 
-### 7. Performance Optimization
+### 8. Production Deployment
 
-#### 7.1 Implement rate limiting
+#### 8.1 Set up production secrets
 
-```typescript
-// In sync route, add:
-let lastSyncTime = 0;
-const SYNC_COOLDOWN = 60000; // 1 minute
+```bash
+# From backend directory
+cd backend
 
-export async function POST(request: NextRequest) {
-  const now = Date.now();
-  if (now - lastSyncTime < SYNC_COOLDOWN) {
-    return NextResponse.json(
-      { error: 'Please wait before syncing again' },
-      { status: 429 }
-    );
-  }
-  lastSyncTime = now;
+# Set OpenAI API key in Cloudflare
+npx wrangler secret put OPENAI_API_KEY
+# Enter your API key when prompted
 
-  // ... rest of sync logic
-}
+# Optionally set GitHub token
+npx wrangler secret put GITHUB_TOKEN
+# Enter your token when prompted
+```
+
+#### 8.2 Run sync against production database
+
+```bash
+# From backend directory
+npm run sync
+# This runs: wrangler dev scripts/sync-github.ts --remote --test-scheduled
 ```
 
 **Acceptance Criteria:**
-- [ ] Rate limiting prevents rapid syncs
-- [ ] Returns 429 Too Many Requests
-
-#### 7.2 Add progress tracking (optional)
-
-For long-running syncs, consider streaming responses or using a job queue.
+- [ ] Production secrets configured
+- [ ] Can sync to production database
+- [ ] Questions visible in production
 
 ## Success Criteria
 
-- [x] GitHub fetcher implemented
-- [x] OpenAI parser extracts Q&A pairs
-- [x] Database upsert logic works
-- [x] Sync API endpoint functional
-- [x] Sync status endpoint works
-- [x] Can sync from configured sources
-- [x] Questions stored with stable IDs
-- [x] Duplicate prevention works
-- [x] Error handling comprehensive
-- [x] Rate limiting implemented
+- [ ] Configuration file created with sources
+- [ ] GitHub fetcher implemented
+- [ ] OpenAI parser extracts Q&A pairs
+- [ ] Database upsert logic works
+- [ ] Sync script functional
+- [ ] Can run sync locally
+- [ ] Can sync to production
+- [ ] Questions stored with stable IDs
+- [ ] Duplicate prevention works
+- [ ] Error handling comprehensive
+- [ ] Progress output is clear
 
 ## Error Scenarios
 
@@ -692,19 +750,32 @@ Handle these gracefully:
 - [ ] OpenAI API failure
 - [ ] Database write failure
 - [ ] No sources configured
-- [ ] Unauthorized access
+- [ ] Missing API keys
+
+## Workflow Summary
+
+1. **Configure Sources**: Add GitHub repository URLs to `backend/src/config/sources.ts`
+2. **Set Environment Variables**: Add `OPENAI_API_KEY` to `backend/.dev.vars`
+3. **Run Sync Script**: Execute `npm run sync:local` from backend directory
+4. **Script Flow**:
+   - Fetches markdown from each configured GitHub source
+   - Parses markdown into Q&A pairs using OpenAI
+   - Upserts questions to D1 database (insert new, update existing)
+   - Outputs progress and summary statistics
+5. **Verify**: Check database to confirm questions were imported
 
 ## Next Steps
 
-After sync is implemented:
-1. Add sync button to settings page UI
-2. Display sync results to user
-3. Show last sync time
-4. Test with real GitHub repositories
-5. Monitor OpenAI token usage
+After sync script is implemented:
+1. Test with real GitHub repositories
+2. Monitor OpenAI token usage and costs
+3. Consider adding scheduled runs (cron trigger)
+4. Add more question sources to config
+5. Optionally create a web UI to trigger syncs
 
 ## References
 
 - [GitHub Raw Content](https://docs.github.com/en/repositories/working-with-files/using-files/viewing-a-file#viewing-or-copying-the-raw-file-content)
 - [OpenAI API Documentation](https://platform.openai.com/docs/api-reference)
 - [D1 Batch Operations](https://developers.cloudflare.com/d1/platform/client-api/#batch-statements)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
