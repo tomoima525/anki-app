@@ -10,8 +10,16 @@
     "build": "pnpm -r build",
     "build:frontend": "pnpm --filter frontend build",
     "build:backend": "pnpm --filter anki-interview-backend deploy",
-    "install:all": "pnpm install"
+    "install:all": "pnpm install",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^15.15.0",
+    "typescript-eslint": "^8.47.0"
+  }
 }

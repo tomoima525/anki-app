@@ -12,7 +12,9 @@
     "db:seed": "wrangler d1 execute anki-interview-db --local --file=./db/seed.sql",
     "sync": "wrangler dev scripts/sync-github.ts --remote --test-scheduled",
     "sync:local": "wrangler dev --local scripts/sync-github.ts --test-scheduled",
-    "test:parse": "wrangler dev --local scripts/test-parse.ts --test-scheduled"
+    "test:parse": "wrangler dev --local scripts/test-parse.ts --test-scheduled",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
