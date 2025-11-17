@@ -15,6 +15,7 @@
     "test:parse": "wrangler dev --local scripts/test-parse.ts --test-scheduled"
   },
   "dependencies": {
+    "@octokit/rest": "^22.0.1",
     "hono": "^4.0.0",
     "openai": "^6.9.0"
   },

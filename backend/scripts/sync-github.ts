@@ -33,6 +33,11 @@ export default {
       return new Response("Error: OPENAI_API_KEY is not set", { status: 500 });
     }
 
+    if (!githubToken) {
+      console.error("Error: GITHUB_TOKEN is not set");
+      return new Response("Error: GITHUB_TOKEN is not set", { status: 500 });
+    }
+
     // Get all configured sources
     const sources = getAllSources();
 

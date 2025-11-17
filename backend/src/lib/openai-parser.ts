@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 export interface ParsedQuestion {
   question: string;
@@ -33,7 +33,7 @@ Here's the markdown content:
 export async function parseQuestionsWithOpenAI(
   markdown: string,
   apiKey: string,
-  model: string = 'gpt-4o-mini'
+  model: string = "gpt-4o-mini"
 ): Promise<ParsedQuestion[]> {
   const openai = new OpenAI({ apiKey });
 
@@ -42,22 +42,23 @@ export async function parseQuestionsWithOpenAI(
       model,
       messages: [
         {
-          role: 'system',
-          content: 'You are a precise question-answer extractor. Always return valid JSON.',
+          role: "system",
+          content:
+            "You are a precise question-answer extractor. Always return valid JSON.",
         },
         {
-          role: 'user',
+          role: "user",
           content: PARSING_PROMPT + markdown,
         },
       ],
       temperature: 0.1, // Low temperature for consistent parsing
-      response_format: { type: 'json_object' },
+      response_format: { type: "json_object" },
     });
 
     const content = response.choices[0]?.message?.content;
 
     if (!content) {
-      throw new Error('No content in OpenAI response');
+      throw new Error("No content in OpenAI response");
     }
 
     const parsed = JSON.parse(content);
@@ -70,12 +71,11 @@ export async function parseQuestionsWithOpenAI(
       (q: any) =>
         q.question &&
         q.answer &&
-        typeof q.question === 'string' &&
-        typeof q.answer === 'string'
+        typeof q.question === "string" &&
+        typeof q.answer === "string"
     );
-
   } catch (error) {
-    console.error('OpenAI parsing error:', error);
+    console.error("OpenAI parsing error:", error);
     throw new Error(`Failed to parse questions: ${error}`);
   }
 }
@@ -84,24 +84,29 @@ export async function parseQuestionsWithOpenAI(
 export async function parseQuestionsInChunks(
   markdown: string,
   apiKey: string,
-  model: string = 'gpt-4o-mini',
+  model: string = "gpt-4o-mini",
   chunkSize: number = 8000
 ): Promise<ParsedQuestion[]> {
   const chunks = splitMarkdownIntoChunks(markdown, chunkSize);
+  console.log(`Splitting into ${chunks.length} chunks`);
   const allQuestions: ParsedQuestion[] = [];
 
   for (const chunk of chunks) {
     const questions = await parseQuestionsWithOpenAI(chunk, apiKey, model);
     allQuestions.push(...questions);
+    console.log(`Parsed ${questions.length} questions`);
   }
 
   return allQuestions;
 }
 
-function splitMarkdownIntoChunks(content: string, maxChunkSize: number): string[] {
+function splitMarkdownIntoChunks(
+  content: string,
+  maxChunkSize: number
+): string[] {
   const chunks: string[] = [];
-  const lines = content.split('\n');
-  let currentChunk = '';
+  const lines = content.split("\n");
+  let currentChunk = "";
 
   for (const line of lines) {
     if (currentChunk.length + line.length > maxChunkSize) {
@@ -110,7 +115,7 @@ function splitMarkdownIntoChunks(content: string, maxChunkSize: number): string[
       }
       currentChunk = line;
     } else {
-      currentChunk += '\n' + line;
+      currentChunk += "\n" + line;
     }
   }
 
