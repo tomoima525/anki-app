@@ -2,29 +2,90 @@
 
 ## Overview
 
-Implement the settings/admin page for syncing questions, managing configuration, and viewing system status.
+This spec outlines the settings/admin page for managing configuration and viewing system status.
+
+**Current Implementation Status:**
+- ✅ Database setup complete (D1 with migrations)
+- ✅ Authentication complete (JWT + bcrypt)
+- ✅ Study flow and question management working
+- ⚠️ GitHub sync implemented as **CLI script only** (not exposed as web API)
+- ❌ Settings page UI **not yet implemented**
+
+**Important Note:**
+The current implementation does **NOT** support triggering sync from the frontend UI. Sync is performed via CLI script only:
+```bash
+cd backend
+pnpm run sync:local   # Local development
+pnpm run sync         # Production sync
+```
+
+This spec describes the **target architecture** for when sync is exposed as a web API.
+
+## Architecture Notes
+
+### Current Sync Implementation
+
+**How Sync Currently Works:**
+```bash
+cd backend
+pnpm run sync:local   # Syncs to local D1 database
+pnpm run sync         # Syncs to production D1 database
+```
+
+The sync script (`backend/scripts/sync-github.ts`):
+1. Reads configured sources from `backend/src/config/sources.ts`
+2. Fetches markdown files from GitHub using Octokit
+3. Sends content to OpenAI API for parsing into Q&A pairs
+4. Upserts questions to D1 database (inserts new, updates existing)
+5. Returns detailed results (inserted, updated counts per source)
+
+**Why It's CLI-Only:**
+- The sync logic exists and works perfectly
+- It's just not exposed as a web API endpoint yet
+- Implementing `/api/sync` endpoint would require refactoring to handle:
+  - Long-running requests (sync can take minutes)
+  - Error handling for API responses
+  - Progress updates for frontend
+  - Timeout management
+
+**Options for Frontend Sync (Future):**
+1. **Simple API wrapper** - Create `/api/sync` that calls sync script, blocks until done
+2. **Queue-based** - Use Cloudflare Queues/Durable Objects for async processing
+3. **Cron-based** - Schedule automatic syncs, show last sync time only
+4. **Keep CLI-only** - Simple, works well for admin operations
+
+For MVP, the Settings page can work without sync functionality by showing system stats and a message about CLI sync.
 
 ## Prerequisites
 
-- Database setup completed
-- Authentication implemented
-- GitHub sync API implemented
+- ✅ Database setup completed (`questions` and `answer_logs` tables)
+- ✅ Authentication implemented (JWT sessions with HTTP-only cookies)
+- ⚠️ GitHub sync logic exists (in `backend/scripts/sync-github.ts`) but not exposed as API
 
 ## Features
 
-1. **Manual GitHub Sync** - Trigger sync from UI
-2. **Sync Status** - View last sync time and results
-3. **Question Count** - See total questions in database
+### Currently Available via CLI
+1. **GitHub Sync** - CLI script syncs from configured GitHub repos
+2. **Question Management** - Full CRUD via `/questions` page
+
+### To Be Implemented (This Spec)
+1. **Settings Page UI** - View system status and configuration
+2. **Sync API Endpoints** - Expose sync functionality as web API (optional/future)
+3. **Sync Status Display** - View last sync time and question count
 4. **Source Management** - View configured sources
 5. **Account Management** - Logout functionality
 
 ## Implementation Tasks
 
-### 1. Settings Page UI
+### 1. Settings Page UI (Status: NOT YET IMPLEMENTED)
+
+**Current Status:** This page does not exist yet. The code below shows the target design.
+
+**Note on Sync Functionality:** The sync button in this UI requires implementing the `/api/sync` endpoint (see Section 1.2 below). Until then, sync must be performed via CLI.
 
 #### 1.1 Create settings page
 
-**Location:** `/src/app/settings/page.tsx`
+**Location:** `frontend/src/app/settings/page.tsx`
 
 ```typescript
 'use client';
@@ -261,21 +322,59 @@ export default function SettingsPage() {
 }
 ```
 
+#### 1.2 Required Backend API Endpoints (NOT YET IMPLEMENTED)
+
+The Settings page above depends on these backend endpoints that **do not currently exist**:
+
+**POST `/api/sync`** - Trigger manual sync
+- Currently: Sync logic exists in `backend/scripts/sync-github.ts` (CLI only)
+- Needed: Expose sync logic as web API endpoint
+- Implementation options:
+  - Option A: Create API route that calls sync script
+  - Option B: Refactor sync logic into reusable function, call from API
+  - Option C: Use Cloudflare Queues/Durable Objects for async processing
+
+**GET `/api/sync/status`** - Get sync status
+- Returns: `{ totalQuestions: number, lastSync: string | null }`
+- Implementation:
+  ```typescript
+  // Count questions
+  SELECT COUNT(*) as count FROM questions
+
+  // Get last sync time (simple approach)
+  SELECT MAX(updated_at) as timestamp FROM questions
+  ```
+
+**Note:** Until these endpoints are implemented, the Settings page will show errors when trying to sync or load status. For MVP, these can be marked as "Coming Soon" in the UI.
+
 **Acceptance Criteria:**
 
 - [ ] Displays system status (question count, last sync)
-- [ ] Sync button triggers GitHub sync
+- [ ] Sync button triggers GitHub sync (requires `/api/sync` endpoint)
 - [ ] Shows sync progress/loading state
 - [ ] Displays sync results
 - [ ] Shows configured sources
 - [ ] Logout button present
 - [ ] Error handling for sync failures
 
-### 2. Enhanced Status Tracking
+**Alternative MVP Approach:**
+- Remove sync button from initial implementation
+- Show "Sync via CLI: `pnpm run sync`" message instead
+- Add sync button later when API is ready
 
-#### 2.1 Add sync metadata table (optional)
+### 2. Enhanced Status Tracking (OPTIONAL - Future Enhancement)
 
-**Location:** `/db/migrations/0002_sync_metadata.sql`
+**Status:** NOT IMPLEMENTED - Not required for MVP
+
+This section describes optional enhancements for tracking sync history. For MVP, simply track:
+- Question count: `SELECT COUNT(*) FROM questions`
+- Last sync time: `SELECT MAX(updated_at) FROM questions`
+
+#### 2.1 Add sync metadata table (optional v2 feature)
+
+**Status:** Not created yet. Skip this for initial implementation.
+
+**Location:** `backend/db/migrations/0002_sync_metadata.sql` (to be created)
 
 ```sql
 CREATE TABLE IF NOT EXISTS sync_metadata (
@@ -345,9 +444,13 @@ await db
 - [ ] Can query sync history
 - [ ] Useful for debugging sync issues
 
-#### 2.2 Sync history endpoint
+**Note:** This is a future enhancement. For MVP, skip this table.
 
-**Location:** `/src/app/api/sync/history/route.ts`
+#### 2.2 Sync history endpoint (OPTIONAL - Future Enhancement)
+
+**Status:** NOT IMPLEMENTED - Requires `sync_metadata` table first
+
+**Location:** `frontend/src/app/api/sync/history/route.ts` (to be created)
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -398,11 +501,17 @@ export async function GET() {
 }
 ```
 
-### 3. Navigation Component
+### 3. Navigation Component (OPTIONAL - Future Enhancement)
 
-#### 3.1 Create global navigation
+**Status:** NOT IMPLEMENTED - Not required for MVP
 
-**Location:** `/src/components/Navigation.tsx`
+Current pages use manual navigation links. A global navigation component would improve UX but is not blocking.
+
+**For MVP:** Settings page can include manual links to other pages (as shown in section 1.1).
+
+#### 3.1 Create global navigation (Future)
+
+**Location:** `frontend/src/components/Navigation.tsx` (to be created)
 
 ```typescript
 'use client';
@@ -489,22 +598,21 @@ export default function Layout({ children }) {
 - [ ] Logout button accessible
 - [ ] Responsive design
 
-### 4. Home Page / Dashboard
+### 4. Home Page / Dashboard (OPTIONAL - Current: Simple Redirect)
 
-#### 4.1 Create home page
-
-**Location:** `/src/app/page.tsx`
+**Current Implementation:** Home page (`frontend/src/app/page.tsx`) redirects to `/study`
 
 ```typescript
 import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  // Redirect to study page by default
   redirect("/study");
 }
 ```
 
-**Or create a dashboard:**
+This is sufficient for MVP. A full dashboard is optional.
+
+**Future Enhancement:** Create a dashboard with stats and quick actions (see code below)
 
 ```typescript
 'use client';
@@ -621,59 +729,77 @@ export default function HomePage() {
 
 #### 6.1 Environment variables checklist
 
-Ensure these are set in Cloudflare:
+**Current Status:** Environment variables are configured. Verify these are set:
 
-- [ ] `APP_USERNAME`
-- [ ] `APP_PASSWORD_HASH`
-- [ ] `SESSION_SECRET`
-- [ ] `OPENAI_API_KEY`
-- [ ] `OPENAI_MODEL` (optional)
-- [ ] `GITHUB_TOKEN` (optional)
+**Frontend** (Cloudflare Pages):
+- [x] `APP_USERNAME` - Admin username
+- [x] `APP_PASSWORD_HASH_B64` - Base64-encoded bcrypt hash (note: uses B64 encoding)
+- [x] `SESSION_SECRET` - 32+ character secret for JWT signing
+- [x] `SESSION_COOKIE_NAME` - Cookie name (default: `anki_session`)
+- [x] `SESSION_MAX_AGE` - Session duration in seconds (default: 604800 = 7 days)
+- [x] `NEXT_PUBLIC_BACKEND_URL` - Backend API URL
+
+**Backend** (Cloudflare Workers):
+- [x] `OPENAI_API_KEY` - Required for question parsing
+- [x] `OPENAI_MODEL` (optional) - Default: `gpt-4o-mini`
+- [x] `GITHUB_TOKEN` (optional) - For higher rate limits
+
+**Note:** Password uses `APP_PASSWORD_HASH_B64` (base64-encoded), not plain `APP_PASSWORD_HASH`
 
 #### 6.2 Deployment configuration
 
-**wrangler.toml:**
+**Current Status:** Deployment infrastructure is fully configured.
 
+**Backend** (`backend/wrangler.toml`):
 ```toml
 name = "anki-interview-app"
-compatibility_date = "2024-01-01"
-
-[build]
-command = "npm run build"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "anki-interview-db"
-database_id = "..." # Your database ID
+database_id = "<your-dev-db-id>"
 
-[env.production]
-[[env.production.d1_databases]]
+[env.production.d1_databases]
 binding = "DB"
 database_name = "anki-interview-db-prod"
-database_id = "..." # Your production database ID
+database_id = "<your-prod-db-id>"
 ```
 
 **Deployment commands:**
 
 ```bash
-# Build and deploy
-npm run build
-npx wrangler pages deploy
+# Backend (Cloudflare Workers)
+cd backend
+wrangler deploy                    # Deploy API
+pnpm db:migrate:prod               # Run migrations on production
+pnpm run sync                      # Sync questions (CLI)
 
-# Or use Cloudflare Pages GitHub integration
+# Frontend (Cloudflare Pages)
+cd frontend
+pnpm pages:build                   # Build for Cloudflare
+wrangler pages deploy              # Deploy
+
+# Or use Cloudflare Pages GitHub integration for auto-deploy
 ```
 
 #### 6.3 Post-deployment testing
 
-- [ ] Can access login page
-- [ ] Can log in with credentials
-- [ ] All routes protected by auth
-- [ ] Can sync questions from GitHub
-- [ ] Study flow works end-to-end
-- [ ] Questions list loads
-- [ ] Question detail pages work
-- [ ] Settings page functional
-- [ ] Database persists across requests
+**Currently Working:**
+- [x] Can access login page
+- [x] Can log in with credentials
+- [x] All routes protected by auth (frontend middleware)
+- [x] Study flow works end-to-end
+- [x] Questions list loads with search/filter
+- [x] Question detail pages work
+- [x] Database persists across requests
+- [x] Answer logging and difficulty tracking
+
+**Not Yet Implemented:**
+- [ ] Settings page exists
+- [ ] Can sync questions from UI (currently CLI-only: `pnpm run sync`)
+- [ ] Backend auth middleware (backend endpoints are currently public)
 
 ### 7. Future Enhancements
 
@@ -699,68 +825,104 @@ npx wrangler pages deploy
 
 ## Success Criteria
 
-- [x] Settings page displays system status
-- [x] Sync button functional
-- [x] Sync results displayed
-- [x] Configured sources listed
-- [x] Navigation component works
-- [x] Home page/dashboard created
-- [x] All pages have consistent navigation
-- [x] Logout accessible from all pages
-- [x] Production deployment ready
+**Currently Complete:**
+- [x] Production deployment infrastructure ready (Cloudflare Pages + Workers + D1)
+- [x] Sync logic implemented (CLI script in `backend/scripts/sync-github.ts`)
+- [x] All core features working (auth, study, questions management)
+
+**To Be Implemented (This Spec):**
+- [ ] Settings page displays system status
+- [ ] Settings page UI created at `frontend/src/app/settings/page.tsx`
+- [ ] Backend `/api/sync` endpoint (expose sync as web API)
+- [ ] Backend `/api/sync/status` endpoint
+- [ ] Sync button functional from UI
+- [ ] Sync results displayed in UI
+- [ ] Configured sources listed in UI
+
+**Optional Enhancements (v2):**
+- [ ] Sync metadata table for history tracking
+- [ ] Navigation component for consistent nav across pages
+- [ ] Dashboard home page with stats
+- [ ] Real-time sync progress updates
 
 ## Complete Application Checklist
 
 ### Core Features
 
-- [x] User authentication
-- [x] GitHub sync
-- [x] Study flashcard flow
-- [x] Question browsing
-- [x] Settings management
+- [x] User authentication (JWT + bcrypt)
+- [x] GitHub sync (CLI script only - `pnpm run sync`)
+- [x] Study flashcard flow with keyboard shortcuts
+- [x] Question browsing with search/filter/pagination
+- [ ] Settings management UI
 
 ### Database
 
 - [x] D1 database setup
-- [x] Migrations run
-- [x] Schema validated
+- [x] Migrations run (`0001_initial_schema.sql`)
+- [x] Schema validated (`questions` and `answer_logs` tables)
+- [ ] Sync metadata table (optional v2 feature)
 
 ### API Endpoints
 
-- [x] POST /api/login
-- [x] POST /api/logout
-- [x] POST /api/sync
-- [x] GET /api/sync/status
-- [x] POST /api/study/next
-- [x] POST /api/study/[id]/answer
-- [x] GET /api/questions
-- [x] GET /api/questions/[id]
-- [x] GET /api/questions/stats
+**Frontend API Routes:**
+- [x] POST `/api/login` - User authentication
+- [x] POST `/api/logout` - Session cleanup
+- [x] GET `/api/auth/session` - Session info
+- [ ] POST `/api/sync` - Trigger GitHub sync (not implemented)
+- [ ] GET `/api/sync/status` - Get sync status (not implemented)
+
+**Backend API Endpoints** (Cloudflare Workers):
+- [x] POST `/api/study/next` - Get random question
+- [x] GET `/api/study/:id` - Get question with answer
+- [x] POST `/api/study/:id/answer` - Submit answer rating
+- [x] GET `/api/questions` - List questions (with filters/search/pagination)
+- [x] GET `/api/questions/:id` - Get question details
+- [x] GET `/api/questions/stats` - Get question statistics
+- [x] GET `/health` - Health check
 
 ### Pages
 
-- [x] /login
-- [x] /study
-- [x] /questions
-- [x] /questions/[id]
-- [x] /settings
+- [x] `/login` - Authentication page
+- [x] `/study` - Study flashcard interface
+- [x] `/questions` - Question list with search/filter
+- [x] `/questions/[id]` - Question detail page
+- [x] `/` - Root (redirects to `/study`)
+- [ ] `/settings` - Settings/admin page (not implemented)
 
 ### Security
 
-- [x] Middleware protection
-- [x] Session management
+- [x] Frontend middleware protection
+- [x] Session management (JWT with HTTP-only cookies)
 - [x] Secure cookies
-- [x] Environment variables
+- [x] Environment variables configured
+- [ ] Backend auth middleware (backend endpoints currently public)
 
 ## Next Steps
 
-After completing all specs:
+**Current State:** Most features are implemented and deployed. Settings page is the primary remaining task.
 
-1. Begin implementation following each spec in order
-2. Test each component before moving to next
-3. Deploy to Cloudflare Pages
-4. Monitor OpenAI API usage
-5. Collect feedback and iterate
+**To Complete Settings Page:**
+
+1. **Create Settings Page UI**
+   - Implement `frontend/src/app/settings/page.tsx` using spec code as template
+   - For MVP: Show system stats, configured sources, logout
+   - Option A: Include sync button (requires backend API)
+   - Option B: Show "Sync via CLI" message for now
+
+2. **Backend API Endpoints (Optional)**
+   - Create `/api/sync` endpoint to expose sync functionality
+   - Create `/api/sync/status` endpoint for status display
+   - Refactor `backend/scripts/sync-github.ts` logic into reusable function
+
+3. **Testing**
+   - Verify settings page loads and displays correctly
+   - Test sync workflow (if implemented)
+   - Verify navigation links work
+
+4. **Monitor & Iterate**
+   - Monitor OpenAI API usage during syncs
+   - Collect user feedback
+   - Consider automated sync (Cloudflare Cron Triggers)
 
 ## References
 
