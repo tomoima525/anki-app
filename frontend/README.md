@@ -45,7 +45,7 @@ Create a `.env.local` file (see `.env.local.example`):
 ```env
 # Auth credentials
 APP_USERNAME=admin
-APP_PASSWORD_HASH=$2b$10$...  # bcrypt hash
+APP_PASSWORD_HASH_B64=JGJiJDEwJC4uLg==
 SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 
 # Session configuration
@@ -56,8 +56,23 @@ SESSION_MAX_AGE=604800  # 7 days in seconds
 ### Generate Password Hash
 
 ```bash
+# Generate bcrypt hash
 node -e "const bcrypt = require('bcrypt'); bcrypt.hash('your-password', 10).then(console.log);"
 ```
+
+### Encode Password Hash for Environment Variables
+
+If your password hash contains special characters (dots, dollar signs) that cause parsing issues, encode it to base64:
+
+```bash
+# Encode an existing hash to base64
+node scripts/encode-password-hash.js $\2b$\10$\your-hash-here
+
+# Or pipe the hash
+echo "$2b$10$your-hash-here" | node scripts/encode-password-hash.js
+```
+
+Then use `APP_PASSWORD_HASH_B64` instead of `APP_PASSWORD_HASH` in your `.env.local` file.
 
 ## Project Structure
 
