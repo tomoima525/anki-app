@@ -1,24 +1,64 @@
-import { cookies } from "next/headers";
-import { verifySession, getSessionCookieConfig } from "./auth";
+import { SignJWT, jwtVerify } from "jose";
 
-export async function getSession() {
-  const cookieStore = cookies();
-  const { name } = getSessionCookieConfig();
-  const token = cookieStore.get(name)?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  return await verifySession(token);
+export interface SessionPayload {
+  username: string;
+  iat: number; // Issued at
+  exp: number; // Expiration
 }
 
-export async function requireSession() {
-  const session = await getSession();
+// Environment helpers
+function getEnv() {
+  return {
+    username: process.env.APP_USERNAME!,
+    passwordHash: process.env.APP_PASSWORD_HASH!,
+    sessionSecret: process.env.SESSION_SECRET!,
+    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || "604800", 10),
+    cookieName: process.env.SESSION_COOKIE_NAME || "anki_session",
+  };
+}
 
-  if (!session) {
-    throw new Error("Unauthorized");
+// Create session token
+export async function createSession(username: string): Promise<string> {
+  const env = getEnv();
+  const secret = new TextEncoder().encode(env.sessionSecret);
+
+  const token = await new SignJWT({ username })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${env.sessionMaxAge}s`)
+    .sign(secret);
+
+  return token;
+}
+
+// Verify session token
+export async function verifySession(
+  token: string
+): Promise<SessionPayload | null> {
+  try {
+    const env = getEnv();
+    const secret = new TextEncoder().encode(env.sessionSecret);
+
+    const { payload } = await jwtVerify(token, secret);
+
+    return payload as unknown as SessionPayload;
+  } catch (error) {
+    return null;
   }
+}
 
-  return session;
+// Get session cookie configuration
+export function getSessionCookieConfig() {
+  const env = getEnv();
+
+  return {
+    name: env.cookieName,
+    options: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      maxAge: env.sessionMaxAge,
+      path: "/",
+    },
+  };
 }

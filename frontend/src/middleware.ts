@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifySession, getSessionCookieConfig } from "@/lib/auth";
+import { verifySession, getSessionCookieConfig } from "@/lib/session";
 
 // Routes that don't require authentication
 const publicPaths = ["/login", "/api/login"];

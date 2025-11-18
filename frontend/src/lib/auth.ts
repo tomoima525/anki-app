@@ -1,17 +1,19 @@
-import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcrypt";
-
-interface SessionPayload {
-  username: string;
-  iat: number; // Issued at
-  exp: number; // Expiration
-}
 
 // Environment helpers
 function getEnv() {
+  // Decode base64-encoded password hash if APP_PASSWORD_HASH_B64 is set
+  // This allows special characters (dots, dollar signs) in bcrypt hashes to be stored safely
+
+  // Decode base64-encoded hash
+  const passwordHash = Buffer.from(
+    process.env.APP_PASSWORD_HASH_B64!,
+    "base64"
+  ).toString("utf-8");
+  console.log("passwordHash", passwordHash);
   return {
     username: process.env.APP_USERNAME!,
-    passwordHash: process.env.APP_PASSWORD_HASH!,
+    passwordHash,
     sessionSecret: process.env.SESSION_SECRET!,
     sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || "604800", 10),
     cookieName: process.env.SESSION_COOKIE_NAME || "anki_session",
@@ -28,52 +30,9 @@ export async function verifyCredentials(
   if (username !== env.username) {
     return false;
   }
-
+  console.log(password, env.passwordHash);
   return await bcrypt.compare(password, env.passwordHash);
 }
 
-// Create session token
-export async function createSession(username: string): Promise<string> {
-  const env = getEnv();
-  const secret = new TextEncoder().encode(env.sessionSecret);
-
-  const token = await new SignJWT({ username })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(`${env.sessionMaxAge}s`)
-    .sign(secret);
-
-  return token;
-}
-
-// Verify session token
-export async function verifySession(
-  token: string
-): Promise<SessionPayload | null> {
-  try {
-    const env = getEnv();
-    const secret = new TextEncoder().encode(env.sessionSecret);
-
-    const { payload } = await jwtVerify(token, secret);
-
-    return payload as SessionPayload;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Get session cookie configuration
-export function getSessionCookieConfig() {
-  const env = getEnv();
-
-  return {
-    name: env.cookieName,
-    options: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      maxAge: env.sessionMaxAge,
-      path: "/",
-    },
-  };
-}
+// Re-export session functions for convenience (API routes can import from either location)
+export { createSession, getSessionCookieConfig } from "./session";

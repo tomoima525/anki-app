@@ -4,9 +4,9 @@
   "private": true,
   "description": "Spaced repetition app for interview questions - Full Stack Application",
   "scripts": {
-    "dev": "pnpm --filter frontend dev",
+    "dev": "pnpm --filter anki-interview-app dev",
     "dev:backend": "pnpm --filter anki-interview-backend dev",
-    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:frontend": "pnpm --filter anki-interview-app dev",
     "build": "pnpm -r build",
     "build:frontend": "pnpm --filter frontend build",
     "build:backend": "pnpm --filter anki-interview-backend deploy",
