@@ -13,14 +13,21 @@
     "preview": "npm run pages:build && wrangler pages dev"
   },
   "dependencies": {
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "bcrypt": "^6.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "jose": "^6.1.2",
+    "lucide-react": "^0.554.0",
     "next": "^15.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

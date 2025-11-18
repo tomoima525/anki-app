@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface StudyStats {
   total: number;
@@ -56,34 +58,35 @@ export default function StudyStats({ onRecordAnswer }: StudyStatsProps) {
   }, [onRecordAnswer]);
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="font-semibold">Session Progress</h3>
-        <button
-          onClick={resetStats}
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
-          Reset
-        </button>
-      </div>
-      <div className="grid grid-cols-4 gap-4 text-center">
-        <div>
-          <div className="text-2xl font-bold">{stats.total}</div>
-          <div className="text-xs text-gray-500">Total</div>
+    <Card className="mb-4">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-lg">Session Progress</CardTitle>
+          <Button onClick={resetStats} variant="ghost" size="sm">
+            Reset
+          </Button>
         </div>
-        <div>
-          <div className="text-2xl font-bold text-green-600">{stats.easy}</div>
-          <div className="text-xs text-gray-500">Easy</div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-4 gap-4 text-center">
+          <div>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-xs text-muted-foreground">Total</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-600">{stats.easy}</div>
+            <div className="text-xs text-muted-foreground">Easy</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.medium}</div>
+            <div className="text-xs text-muted-foreground">Medium</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-red-600">{stats.hard}</div>
+            <div className="text-xs text-muted-foreground">Hard</div>
+          </div>
         </div>
-        <div>
-          <div className="text-2xl font-bold text-yellow-600">{stats.medium}</div>
-          <div className="text-xs text-gray-500">Medium</div>
-        </div>
-        <div>
-          <div className="text-2xl font-bold text-red-600">{stats.hard}</div>
-          <div className="text-xs text-gray-500">Hard</div>
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

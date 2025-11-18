@@ -2,6 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { Question } from '@/types/database';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface QuestionStats {
   totalQuestions: number;
@@ -141,16 +146,15 @@ export default function QuestionsPage() {
     });
   };
 
-  const getDifficultyColor = (difficulty: string | null) => {
+  const getDifficultyVariant = (difficulty: string | null): "default" | "secondary" | "destructive" | "outline" => {
     switch (difficulty) {
       case 'easy':
-        return 'bg-green-100 text-green-800';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'secondary';
       case 'hard':
-        return 'bg-red-100 text-red-800';
+        return 'destructive';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'outline';
     }
   };
 
@@ -161,113 +165,121 @@ export default function QuestionsPage() {
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-3xl font-bold">Question Management</h1>
-            <nav className="space-x-4">
-              <a href="/study" className="text-blue-600 hover:text-blue-800">
-                Study
-              </a>
-              <a href="/settings" className="text-blue-600 hover:text-blue-800">
-                Settings
-              </a>
+            <nav className="flex gap-2">
+              <Button asChild variant="link">
+                <a href="/study">Study</a>
+              </Button>
+              <Button asChild variant="link">
+                <a href="/settings">Settings</a>
+              </Button>
             </nav>
           </div>
 
           {/* Stats Cards */}
           {stats && (
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Total Questions</div>
-                <div className="text-2xl font-bold">{stats.totalQuestions}</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Answered</div>
-                <div className="text-2xl font-bold text-green-600">
-                  {stats.answeredQuestions}
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Easy</div>
-                <div className="text-2xl font-bold text-green-500">
-                  {stats.difficultyDistribution.easy}
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Medium</div>
-                <div className="text-2xl font-bold text-yellow-500">
-                  {stats.difficultyDistribution.medium}
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Hard</div>
-                <div className="text-2xl font-bold text-red-500">
-                  {stats.difficultyDistribution.hard}
-                </div>
-              </div>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Total Questions</div>
+                  <div className="text-2xl font-bold">{stats.totalQuestions}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Answered</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {stats.answeredQuestions}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Easy</div>
+                  <div className="text-2xl font-bold text-green-500">
+                    {stats.difficultyDistribution.easy}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Medium</div>
+                  <div className="text-2xl font-bold text-yellow-500">
+                    {stats.difficultyDistribution.medium}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Hard</div>
+                  <div className="text-2xl font-bold text-red-500">
+                    {stats.difficultyDistribution.hard}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
 
         {/* Filters and Search */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Search */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Search
-              </label>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search questions..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Search */}
+              <div className="space-y-2">
+                <Label htmlFor="search">Search</Label>
+                <Input
+                  id="search"
+                  type="text"
+                  value={search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search questions..."
+                />
+              </div>
 
-            {/* Difficulty Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Difficulty
-              </label>
-              <select
-                value={difficulty}
-                onChange={(e) => handleDifficultyFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
+              {/* Difficulty Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="difficulty">Difficulty</Label>
+                <select
+                  id="difficulty"
+                  value={difficulty}
+                  onChange={(e) => handleDifficultyFilter(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">All</option>
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
 
-            {/* Sort */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sort By
-              </label>
-              <select
-                value={sort}
-                onChange={(e) => handleSortChange(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="recent">Recently Answered</option>
-                <option value="oldest">Least Recently Answered</option>
-                <option value="most_answered">Most Answered</option>
-                <option value="least_answered">Least Answered</option>
-              </select>
+              {/* Sort */}
+              <div className="space-y-2">
+                <Label htmlFor="sort">Sort By</Label>
+                <select
+                  id="sort"
+                  value={sort}
+                  onChange={(e) => handleSortChange(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="recent">Recently Answered</option>
+                  <option value="oldest">Least Recently Answered</option>
+                  <option value="most_answered">Most Answered</option>
+                  <option value="least_answered">Least Answered</option>
+                </select>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Error */}
         {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
             {error}
           </div>
         )}
 
         {/* Questions List */}
-        <div className="bg-white rounded-lg shadow">
+        <Card>
           {loading ? (
             <div className="text-center py-12">
               <div className="text-gray-600">Loading questions...</div>
@@ -316,13 +328,9 @@ export default function QuestionsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`px-2 py-1 text-xs font-semibold rounded-full ${getDifficultyColor(
-                              question.last_difficulty
-                            )}`}
-                          >
+                          <Badge variant={getDifficultyVariant(question.last_difficulty)}>
                             {question.last_difficulty || 'N/A'}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-900">
@@ -335,12 +343,11 @@ export default function QuestionsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <a
-                            href={`/questions/${question.id}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            View Details
-                          </a>
+                          <Button asChild variant="link" size="sm" className="h-auto p-0">
+                            <a href={`/questions/${question.id}`}>
+                              View Details
+                            </a>
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -349,32 +356,34 @@ export default function QuestionsPage() {
               </div>
 
               {/* Pagination */}
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-700">
+              <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
                   Showing {pagination.offset + 1} to{' '}
                   {Math.min(pagination.offset + pagination.limit, pagination.total)} of{' '}
                   {pagination.total} questions
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     onClick={handlePrevPage}
                     disabled={pagination.offset === 0}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    variant="outline"
+                    size="sm"
                   >
                     Previous
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={handleNextPage}
                     disabled={!pagination.hasMore}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    variant="outline"
+                    size="sm"
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               </div>
             </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );
