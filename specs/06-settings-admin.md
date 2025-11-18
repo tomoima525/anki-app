@@ -2,35 +2,412 @@
 
 ## Overview
 
-Implement the settings/admin page for syncing questions, managing configuration, and viewing system status.
+Implement the settings/admin page for syncing questions, managing configuration, and viewing system status. This document describes the implementation plan for adding a settings interface to the Anki Interview App, which is built on **Cloudflare infrastructure** (Workers + D1 + Pages).
+
+## Current Implementation Status
+
+### ✅ Already Implemented
+
+- **Authentication**: Login/logout with JWT sessions (frontend)
+- **Study Flow**: Flashcard interface with difficulty ratings
+- **Question Management**: Browse, search, filter, view details
+- **Database**: Cloudflare D1 with proper schema and indexes
+- **Stats API**: Question statistics and answer tracking
+- **GitHub Sync Logic**: Implemented as standalone script (`pnpm sync`)
+- **OpenAI Parsing**: Extract Q&A from markdown files
+
+### ❌ Not Yet Implemented
+
+- **Settings Page**: No UI exists (referenced in navigation but returns 404)
+- **Sync API Endpoints**: No `/api/sync`, `/api/sync/status`, or `/api/sync/history` endpoints
+- **Global Navigation Component**: No unified navigation across pages
+- **Sync Metadata Table**: No database tracking of sync history
+- **Backend API Authentication**: Backend endpoints have no auth (rely on CORS only)
+
+## Infrastructure
+
+### Platform: Cloudflare
+
+- **Backend**: Cloudflare Workers with Hono framework
+- **Database**: Cloudflare D1 (serverless SQLite)
+- **Frontend**: Next.js 15 (App Router) on Cloudflare Pages
+- **Configuration**: `backend/wrangler.toml`
+
+### Database Bindings
+
+```toml
+# Development
+[[d1_databases]]
+binding = "DB"
+database_name = "anki-interview-db"
+database_id = "3d697f9b-2f45-4b63-9907-fc3f26c1595c"
+
+# Production
+[env.production.d1_databases]
+database_name = "anki-interview-db-prod"
+database_id = "5dbc09cb-a3c6-4f2e-b4aa-cef932a2d765"
+```
+
+### External Services
+
+- **GitHub API**: Fetch markdown files from repositories (via `@octokit/rest`)
+- **OpenAI API**: Parse questions from markdown using GPT-4o-mini
+
+### Configured Question Sources
+
+**Location:** `backend/src/config/sources.ts`
+
+**Active sources:**
+- JavaScript Interview Questions
+  - URL: `https://raw.githubusercontent.com/sudheerj/javascript-interview-questions/master/README.md`
+
+**Commented out (can be enabled):**
+- Back-End Developer Interview Questions
+  - URL: `https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md`
 
 ## Prerequisites
 
-- Database setup completed
-- Authentication implemented
-- GitHub sync API implemented
-
-## Features
-
-1. **Manual GitHub Sync** - Trigger sync from UI
-2. **Sync Status** - View last sync time and results
-3. **Question Count** - See total questions in database
-4. **Source Management** - View configured sources
-5. **Account Management** - Logout functionality
+- [x] Database setup completed (Cloudflare D1)
+- [x] Authentication implemented (frontend JWT sessions)
+- [ ] GitHub sync API endpoints (currently only script exists)
 
 ## Implementation Tasks
 
-### 1. Settings Page UI
+### 1. Backend API Endpoints
 
-#### 1.1 Create settings page
+The sync functionality currently exists as a standalone script (`backend/scripts/sync-github.ts`). To enable UI-triggered syncing, we need to create API endpoints.
 
-**Location:** `/src/app/settings/page.tsx`
+#### 1.1 Create sync endpoint
+
+**Location:** `backend/src/index.ts` (add to existing Hono app)
+
+```typescript
+import { syncAllSources } from './lib/sync';
+import { getAllSources } from './config/sources';
+
+/**
+ * POST /api/sync
+ * Trigger GitHub sync for all configured sources
+ */
+app.post('/api/sync', async (c) => {
+  try {
+    const db = c.env.DB;
+    const openaiApiKey = c.env.OPENAI_API_KEY;
+
+    if (!openaiApiKey) {
+      return c.json(
+        { error: 'OPENAI_API_KEY not configured' },
+        500
+      );
+    }
+
+    const results = await syncAllSources(db, openaiApiKey);
+
+    return c.json({
+      success: true,
+      results,
+      totals: {
+        inserted: results.reduce((sum, r) => sum + r.inserted, 0),
+        updated: results.reduce((sum, r) => sum + r.updated, 0),
+        total: results.reduce((sum, r) => sum + r.total, 0),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Sync error:', error);
+    return c.json(
+      {
+        error: 'Failed to sync questions',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
+  }
+});
+```
+
+**Note:** This requires extracting the sync logic from `scripts/sync-github.ts` into a reusable library function.
+
+#### 1.2 Create sync status endpoint
+
+**Location:** `backend/src/index.ts`
+
+```typescript
+/**
+ * GET /api/sync/status
+ * Get current sync status and question count
+ */
+app.get('/api/sync/status', async (c) => {
+  try {
+    const db = c.env.DB;
+
+    // Get total question count
+    const { count } = await db
+      .prepare('SELECT COUNT(*) as count FROM questions')
+      .first<{ count: number }>();
+
+    // Get last sync time (from most recently updated question)
+    const lastSync = await db
+      .prepare(
+        `SELECT updated_at
+         FROM questions
+         ORDER BY updated_at DESC
+         LIMIT 1`
+      )
+      .first<{ updated_at: string }>();
+
+    return c.json({
+      totalQuestions: count || 0,
+      lastSync: lastSync?.updated_at || null,
+    });
+  } catch (error) {
+    console.error('Status error:', error);
+    return c.json({ error: 'Failed to get sync status' }, 500);
+  }
+});
+```
+
+#### 1.3 Add sync metadata tracking (Optional)
+
+To track sync history, add a new migration and table:
+
+**Location:** `backend/db/migrations/0002_sync_metadata.sql`
+
+```sql
+-- Migration: Add sync metadata tracking
+-- Created: 2025-01-XX
+
+CREATE TABLE IF NOT EXISTS sync_metadata (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at DATETIME NOT NULL,
+  completed_at DATETIME,
+  status TEXT CHECK(status IN ('running', 'completed', 'failed')) NOT NULL,
+  sources_count INTEGER,
+  questions_inserted INTEGER,
+  questions_updated INTEGER,
+  error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sync_metadata_completed_at
+  ON sync_metadata(completed_at DESC);
+```
+
+**Run migration:**
+
+```bash
+cd backend
+npx wrangler d1 migrations apply anki-interview-db --local
+npx wrangler d1 migrations apply anki-interview-db --remote
+```
+
+**Update sync endpoint to log metadata:**
+
+```typescript
+// At start of sync
+const syncRecord = await db
+  .prepare(
+    `INSERT INTO sync_metadata (started_at, status, sources_count)
+     VALUES (?, 'running', ?)
+     RETURNING id`
+  )
+  .bind(new Date().toISOString(), sources.length)
+  .first<{ id: number }>();
+
+try {
+  // ... perform sync ...
+
+  // On success
+  await db
+    .prepare(
+      `UPDATE sync_metadata
+       SET completed_at = ?,
+           status = 'completed',
+           questions_inserted = ?,
+           questions_updated = ?
+       WHERE id = ?`
+    )
+    .bind(
+      new Date().toISOString(),
+      totals.inserted,
+      totals.updated,
+      syncRecord.id
+    )
+    .run();
+} catch (error) {
+  // On failure
+  await db
+    .prepare(
+      `UPDATE sync_metadata
+       SET completed_at = ?,
+           status = 'failed',
+           error_message = ?
+       WHERE id = ?`
+    )
+    .bind(
+      new Date().toISOString(),
+      error.message,
+      syncRecord.id
+    )
+    .run();
+  throw error;
+}
+```
+
+#### 1.4 Create sync history endpoint (Optional)
+
+**Location:** `backend/src/index.ts`
+
+```typescript
+/**
+ * GET /api/sync/history
+ * Get recent sync history
+ */
+app.get('/api/sync/history', async (c) => {
+  try {
+    const db = c.env.DB;
+
+    const history = await db
+      .prepare(
+        `SELECT *
+         FROM sync_metadata
+         ORDER BY started_at DESC
+         LIMIT 10`
+      )
+      .all();
+
+    return c.json({
+      history: history.results || [],
+    });
+  } catch (error) {
+    console.error('History error:', error);
+    return c.json({ error: 'Failed to get sync history' }, 500);
+  }
+});
+```
+
+**Acceptance Criteria:**
+
+- [ ] POST /api/sync triggers GitHub sync
+- [ ] GET /api/sync/status returns question count and last sync time
+- [ ] GET /api/sync/history returns sync history (if metadata table added)
+- [ ] Error handling for missing API keys
+- [ ] CORS configured to allow frontend requests
+
+### 2. Frontend API Routes (Proxy Layer)
+
+Since the frontend runs on Cloudflare Pages and the backend runs on Cloudflare Workers, we need to proxy sync requests through frontend API routes to add authentication.
+
+#### 2.1 Create sync proxy endpoint
+
+**Location:** `frontend/src/app/api/sync/route.ts`
+
+```typescript
+import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+
+export const runtime = 'edge';
+
+const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:8787';
+
+export async function POST() {
+  try {
+    // Require authentication
+    await requireSession();
+
+    // Forward to backend
+    const response = await fetch(`${BACKEND_URL}/api/sync`, {
+      method: 'POST',
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.error('Sync proxy error:', error);
+    return NextResponse.json(
+      { error: 'Failed to sync questions' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+#### 2.2 Create sync status proxy endpoint
+
+**Location:** `frontend/src/app/api/sync/status/route.ts`
+
+```typescript
+import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+
+export const runtime = 'edge';
+
+const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:8787';
+
+export async function GET() {
+  try {
+    await requireSession();
+
+    const response = await fetch(`${BACKEND_URL}/api/sync/status`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to get sync status' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+#### 2.3 Environment variables
+
+Add to `frontend/.env.local`:
+
+```bash
+BACKEND_API_URL=http://localhost:8787
+```
+
+Add to Cloudflare Pages environment variables:
+
+```bash
+BACKEND_API_URL=https://anki-interview-app.your-worker.workers.dev
+```
+
+**Acceptance Criteria:**
+
+- [ ] Frontend API routes proxy to backend
+- [ ] Authentication required for sync operations
+- [ ] Error handling for backend failures
+- [ ] BACKEND_API_URL configured for dev and production
+
+### 3. Settings Page UI
+
+#### 3.1 Create settings page
+
+**Location:** `frontend/src/app/settings/page.tsx`
 
 ```typescript
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 
@@ -57,7 +434,6 @@ interface SyncResult {
 }
 
 export default function SettingsPage() {
-  const router = useRouter();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
@@ -70,8 +446,10 @@ export default function SettingsPage() {
   const loadStatus = async () => {
     try {
       const response = await fetch('/api/sync/status');
-      const data = await response.json();
-      setStatus(data);
+      if (response.ok) {
+        const data = await response.json();
+        setStatus(data);
+      }
     } catch (err) {
       console.error('Failed to load status:', err);
     }
@@ -95,10 +473,7 @@ export default function SettingsPage() {
       }
 
       setSyncResult(data);
-
-      // Reload status after successful sync
       await loadStatus();
-
     } catch (err) {
       setError('Network error. Please try again.');
       console.error('Sync error:', err);
@@ -152,7 +527,8 @@ export default function SettingsPage() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">GitHub Sync</h2>
           <p className="text-gray-600 mb-4">
-            Sync interview questions from configured GitHub repositories.
+            Sync interview questions from configured GitHub repositories. This
+            uses OpenAI to parse questions from markdown files.
           </p>
 
           {error && (
@@ -211,19 +587,18 @@ export default function SettingsPage() {
             <div className="flex items-start">
               <div className="flex-1">
                 <div className="font-medium">
-                  Back-End Developer Interview Questions
+                  JavaScript Interview Questions
                 </div>
                 <div className="text-sm text-gray-500 break-all">
-                  https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md
+                  https://raw.githubusercontent.com/sudheerj/javascript-interview-questions/master/README.md
                 </div>
               </div>
             </div>
-            {/* Add more sources here as configured */}
           </div>
           <p className="mt-4 text-sm text-gray-500">
             To add more sources, update the configuration in{' '}
             <code className="bg-gray-100 px-1 py-0.5 rounded">
-              /src/config/sources.ts
+              backend/src/config/sources.ts
             </code>
           </p>
         </div>
@@ -266,143 +641,19 @@ export default function SettingsPage() {
 - [ ] Displays system status (question count, last sync)
 - [ ] Sync button triggers GitHub sync
 - [ ] Shows sync progress/loading state
-- [ ] Displays sync results
-- [ ] Shows configured sources
+- [ ] Displays sync results with details per source
+- [ ] Shows configured sources (JavaScript Interview Questions)
 - [ ] Logout button present
 - [ ] Error handling for sync failures
+- [ ] Responsive design
 
-### 2. Enhanced Status Tracking
+### 4. Navigation Component (Optional)
 
-#### 2.1 Add sync metadata table (optional)
+To provide consistent navigation across all pages, create a reusable component.
 
-**Location:** `/db/migrations/0002_sync_metadata.sql`
+#### 4.1 Create navigation component
 
-```sql
-CREATE TABLE IF NOT EXISTS sync_metadata (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  started_at DATETIME NOT NULL,
-  completed_at DATETIME,
-  status TEXT CHECK(status IN ('running', 'completed', 'failed')),
-  sources_count INTEGER,
-  questions_inserted INTEGER,
-  questions_updated INTEGER,
-  error_message TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_sync_metadata_completed_at
-  ON sync_metadata(completed_at DESC);
-```
-
-**Update sync endpoint to log:**
-
-```typescript
-// At start of sync
-const syncId = await db
-  .prepare(
-    `INSERT INTO sync_metadata (started_at, status)
-     VALUES (?, 'running')
-     RETURNING id`
-  )
-  .bind(new Date().toISOString())
-  .first<{ id: number }>();
-
-// At end of sync (success)
-await db
-  .prepare(
-    `UPDATE sync_metadata
-     SET completed_at = ?,
-         status = 'completed',
-         sources_count = ?,
-         questions_inserted = ?,
-         questions_updated = ?
-     WHERE id = ?`
-  )
-  .bind(
-    new Date().toISOString(),
-    results.length,
-    totals.inserted,
-    totals.updated,
-    syncId.id
-  )
-  .run();
-
-// On error
-await db
-  .prepare(
-    `UPDATE sync_metadata
-     SET completed_at = ?,
-         status = 'failed',
-         error_message = ?
-     WHERE id = ?`
-  )
-  .bind(new Date().toISOString(), error.message, syncId.id)
-  .run();
-```
-
-**Acceptance Criteria:**
-
-- [ ] Sync history tracked in database
-- [ ] Can query sync history
-- [ ] Useful for debugging sync issues
-
-#### 2.2 Sync history endpoint
-
-**Location:** `/src/app/api/sync/history/route.ts`
-
-```typescript
-import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
-import { getDB } from "@/lib/db";
-
-export const runtime = "edge";
-
-interface SyncHistory {
-  id: number;
-  started_at: string;
-  completed_at: string | null;
-  status: "running" | "completed" | "failed";
-  sources_count: number | null;
-  questions_inserted: number | null;
-  questions_updated: number | null;
-  error_message: string | null;
-}
-
-export async function GET() {
-  try {
-    await requireSession();
-
-    const db = getDB();
-
-    const history = await db
-      .prepare(
-        `SELECT *
-         FROM sync_metadata
-         ORDER BY started_at DESC
-         LIMIT 10`
-      )
-      .all<SyncHistory>();
-
-    return NextResponse.json({
-      history: history.results || [],
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    return NextResponse.json(
-      { error: "Failed to get sync history" },
-      { status: 500 }
-    );
-  }
-}
-```
-
-### 3. Navigation Component
-
-#### 3.1 Create global navigation
-
-**Location:** `/src/components/Navigation.tsx`
+**Location:** `frontend/src/components/Navigation.tsx`
 
 ```typescript
 'use client';
@@ -414,12 +665,6 @@ import LogoutButton from './LogoutButton';
 export default function Navigation() {
   const pathname = usePathname();
 
-  const isActive = (path: string) => {
-    return pathname === path
-      ? 'bg-blue-600 text-white'
-      : 'text-gray-700 hover:bg-gray-100';
-  };
-
   return (
     <nav className="bg-white shadow">
       <div className="max-w-7xl mx-auto px-4">
@@ -427,7 +672,7 @@ export default function Navigation() {
           <div className="flex space-x-8">
             <Link
               href="/study"
-              className={`inline-flex items-center px-4 border-b-2 text-sm font-medium ${
+              className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                 pathname === '/study'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -437,7 +682,7 @@ export default function Navigation() {
             </Link>
             <Link
               href="/questions"
-              className={`inline-flex items-center px-4 border-b-2 text-sm font-medium ${
+              className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                 pathname === '/questions' || pathname?.startsWith('/questions/')
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -447,7 +692,7 @@ export default function Navigation() {
             </Link>
             <Link
               href="/settings"
-              className={`inline-flex items-center px-4 border-b-2 text-sm font-medium ${
+              className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                 pathname === '/settings'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -466,131 +711,147 @@ export default function Navigation() {
 }
 ```
 
-**Usage in layout:**
+#### 4.2 Update pages to use navigation
+
+**Option A:** Add to individual pages
 
 ```typescript
-// /src/app/layout.tsx or specific page layouts
 import Navigation from '@/components/Navigation';
 
-export default function Layout({ children }) {
+export default function StudyPage() {
   return (
     <>
       <Navigation />
-      <main>{children}</main>
+      <div className="min-h-screen bg-gray-50 py-8">
+        {/* Page content */}
+      </div>
     </>
   );
 }
 ```
 
-**Acceptance Criteria:**
-
-- [ ] Navigation visible on all pages
-- [ ] Active page highlighted
-- [ ] Logout button accessible
-- [ ] Responsive design
-
-### 4. Home Page / Dashboard
-
-#### 4.1 Create home page
-
-**Location:** `/src/app/page.tsx`
+**Option B:** Add to layout (affects all pages)
 
 ```typescript
-import { redirect } from "next/navigation";
+// frontend/src/app/layout.tsx
+import Navigation from '@/components/Navigation';
 
-export default function HomePage() {
-  // Redirect to study page by default
-  redirect("/study");
-}
-```
-
-**Or create a dashboard:**
-
-```typescript
-'use client';
-
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-
-interface DashboardStats {
-  totalQuestions: number;
-  answeredQuestions: number;
-  recentActivity: number;
-}
-
-export default function HomePage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-
-  useEffect(() => {
-    fetch('/api/questions/stats')
-      .then(res => res.json())
-      .then(setStats)
-      .catch(console.error);
-  }, []);
-
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8">
-          Welcome to Anki Interview App
-        </h1>
-
-        {/* Quick stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold text-blue-600">
-              {stats?.totalQuestions ?? '—'}
-            </div>
-            <div className="text-gray-600">Total Questions</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold text-green-600">
-              {stats?.answeredQuestions ?? '—'}
-            </div>
-            <div className="text-gray-600">Answered</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold text-purple-600">
-              {stats?.recentActivity ?? '—'}
-            </div>
-            <div className="text-gray-600">Last 7 Days</div>
-          </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Link
-            href="/study"
-            className="block bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg p-8 text-center"
-          >
-            <h2 className="text-2xl font-bold mb-2">Start Studying</h2>
-            <p className="text-blue-100">Begin a flashcard session</p>
-          </Link>
-
-          <Link
-            href="/questions"
-            className="block bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-lg shadow-lg p-8 text-center"
-          >
-            <h2 className="text-2xl font-bold mb-2">Browse Questions</h2>
-            <p className="text-gray-600">Explore all questions</p>
-          </Link>
-        </div>
-      </div>
-    </div>
+    <html lang="en">
+      <body>
+        <Navigation />
+        <main>{children}</main>
+      </body>
+    </html>
   );
 }
 ```
 
+**Note:** If using layout approach, exclude navigation from `/login` page.
+
 **Acceptance Criteria:**
 
-- [ ] Homepage accessible
-- [ ] Shows overview stats
-- [ ] Quick links to study and questions
-- [ ] Clean, welcoming design
+- [ ] Navigation visible on study, questions, and settings pages
+- [ ] Active page highlighted with blue underline
+- [ ] Logout button accessible
+- [ ] Responsive design for mobile
 
-### 5. Testing
+### 5. Environment Variables Setup
 
-#### 5.1 Manual testing checklist
+#### 5.1 Backend environment variables
+
+**Cloudflare Workers** (set via `wrangler secret put` or dashboard):
+
+```bash
+APP_USERNAME=admin
+APP_PASSWORD_HASH=<bcrypt-hash>
+SESSION_SECRET=<random-32-char-string>
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini  # Optional, defaults to gpt-4o-mini
+GITHUB_TOKEN=ghp_...      # Optional, for higher rate limits
+```
+
+#### 5.2 Frontend environment variables
+
+**Cloudflare Pages** (set via dashboard):
+
+```bash
+APP_USERNAME=admin
+APP_PASSWORD_HASH_B64=<base64-bcrypt-hash>
+SESSION_SECRET=<same-as-backend>
+SESSION_COOKIE_NAME=anki_session
+SESSION_MAX_AGE=604800
+BACKEND_API_URL=https://anki-interview-app.your-worker.workers.dev
+```
+
+**Development** (`.env.local`):
+
+```bash
+APP_USERNAME=admin
+APP_PASSWORD_HASH_B64=<base64-bcrypt-hash>
+SESSION_SECRET=<random-32-char-string>
+SESSION_COOKIE_NAME=anki_session
+SESSION_MAX_AGE=604800
+BACKEND_API_URL=http://localhost:8787
+```
+
+#### 5.3 Generate password hash
+
+```bash
+# Install bcrypt-cli
+npm install -g bcrypt-cli
+
+# Generate hash
+bcrypt-cli "your-password" 10
+
+# For frontend (base64 encoded)
+echo -n "bcrypt-hash-here" | base64
+```
+
+**Acceptance Criteria:**
+
+- [ ] All required environment variables documented
+- [ ] Backend secrets configured in Cloudflare Workers
+- [ ] Frontend env vars configured in Cloudflare Pages
+- [ ] Password hash generated securely
+- [ ] SESSION_SECRET matches between frontend and backend
+
+### 6. Testing
+
+#### 6.1 Backend API testing
+
+```bash
+# Start backend locally
+cd backend
+pnpm dev
+
+# Test endpoints
+curl http://localhost:8787/health
+curl http://localhost:8787/api/sync/status
+curl -X POST http://localhost:8787/api/sync
+```
+
+#### 6.2 Frontend testing
+
+```bash
+# Start frontend locally
+cd frontend
+pnpm dev
+
+# Test in browser
+# 1. Navigate to http://localhost:3000/settings
+# 2. Click "Sync from GitHub"
+# 3. Verify loading state appears
+# 4. Verify success message shows
+# 5. Verify question count updates
+```
+
+#### 6.3 Manual testing checklist
 
 **Settings page:**
 
@@ -602,169 +863,157 @@ export default function HomePage() {
 - [ ] Question count updates after sync
 - [ ] Last sync time updates
 - [ ] Error handling works for sync failures
-- [ ] Configured sources listed
+- [ ] Configured sources listed (JavaScript Interview Questions)
 - [ ] Logout button works
 
-**Navigation:**
+**Navigation (if implemented):**
 
 - [ ] Navigation appears on all pages
 - [ ] Active page highlighted
 - [ ] All links work
 - [ ] Responsive on mobile
 
-**Home page:**
+**Integration:**
 
-- [ ] Displays dashboard stats
-- [ ] Quick action links work
+- [ ] Can log in successfully
+- [ ] Settings page requires authentication
+- [ ] Sync requires authentication
+- [ ] Can sync questions and study them immediately
+- [ ] Answer tracking works after sync
 
-### 6. Production Considerations
+### 7. Deployment
 
-#### 6.1 Environment variables checklist
-
-Ensure these are set in Cloudflare:
-
-- [ ] `APP_USERNAME`
-- [ ] `APP_PASSWORD_HASH`
-- [ ] `SESSION_SECRET`
-- [ ] `OPENAI_API_KEY`
-- [ ] `OPENAI_MODEL` (optional)
-- [ ] `GITHUB_TOKEN` (optional)
-
-#### 6.2 Deployment configuration
-
-**wrangler.toml:**
-
-```toml
-name = "anki-interview-app"
-compatibility_date = "2024-01-01"
-
-[build]
-command = "npm run build"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "anki-interview-db"
-database_id = "..." # Your database ID
-
-[env.production]
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "anki-interview-db-prod"
-database_id = "..." # Your production database ID
-```
-
-**Deployment commands:**
+#### 7.1 Deploy backend
 
 ```bash
-# Build and deploy
-npm run build
-npx wrangler pages deploy
+cd backend
 
-# Or use Cloudflare Pages GitHub integration
+# Deploy to production
+pnpm deploy
+
+# Or manually
+npx wrangler deploy
+
+# Run production migration (if adding sync_metadata table)
+npx wrangler d1 migrations apply anki-interview-db-prod --remote
 ```
 
-#### 6.3 Post-deployment testing
+#### 7.2 Deploy frontend
 
-- [ ] Can access login page
+```bash
+cd frontend
+
+# Build for production
+pnpm build
+
+# Deploy to Cloudflare Pages
+# (Usually automatic via GitHub integration)
+# Or manually:
+npx wrangler pages deploy .next
+```
+
+#### 7.3 Post-deployment testing
+
+- [ ] Can access production URL
 - [ ] Can log in with credentials
-- [ ] All routes protected by auth
-- [ ] Can sync questions from GitHub
-- [ ] Study flow works end-to-end
-- [ ] Questions list loads
-- [ ] Question detail pages work
-- [ ] Settings page functional
-- [ ] Database persists across requests
-
-### 7. Future Enhancements
-
-#### 7.1 Potential features
-
-- [ ] Export answer history to CSV
-- [ ] Clear all answer history (soft reset)
-- [ ] Add custom questions manually
-- [ ] Tag system for questions
-- [ ] Study session statistics
-- [ ] Spaced repetition algorithm
-- [ ] Dark mode
-- [ ] Mobile app (PWA)
-- [ ] Email notifications for study reminders
-
-#### 7.2 Performance optimizations
-
-- [ ] Implement caching for question list
-- [ ] Add pagination for large datasets
-- [ ] Optimize database queries
-- [ ] Lazy load answer text
-- [ ] Service worker for offline support
+- [ ] Settings page loads
+- [ ] Can trigger sync from UI
+- [ ] Sync completes successfully
+- [ ] Questions appear in study flow
+- [ ] All navigation works
 
 ## Success Criteria
 
-- [x] Settings page displays system status
-- [x] Sync button functional
-- [x] Sync results displayed
-- [x] Configured sources listed
-- [x] Navigation component works
-- [x] Home page/dashboard created
-- [x] All pages have consistent navigation
-- [x] Logout accessible from all pages
-- [x] Production deployment ready
+### Minimum Viable Settings Page
 
-## Complete Application Checklist
+- [ ] Settings page exists and is accessible
+- [ ] Displays total question count
+- [ ] Shows last sync timestamp
+- [ ] Manual sync button triggers GitHub sync
+- [ ] Sync results displayed to user
+- [ ] Error handling for sync failures
+- [ ] Logout functionality present
 
-### Core Features
+### Full Implementation (Optional)
 
-- [x] User authentication
-- [x] GitHub sync
-- [x] Study flashcard flow
-- [x] Question browsing
-- [x] Settings management
+- [ ] Global navigation component
+- [ ] Sync history tracking
+- [ ] Sync history display
+- [ ] Advanced options (clear history, etc.)
+- [ ] Responsive design
+- [ ] Loading states and animations
 
-### Database
+## Architecture Decisions
 
-- [x] D1 database setup
-- [x] Migrations run
-- [x] Schema validated
+### Why Proxy Through Frontend API Routes?
 
-### API Endpoints
+The backend (Cloudflare Workers) has no authentication. To secure sync operations:
 
-- [x] POST /api/login
-- [x] POST /api/logout
-- [x] POST /api/sync
-- [x] GET /api/sync/status
-- [x] POST /api/study/next
-- [x] POST /api/study/[id]/answer
-- [x] GET /api/questions
-- [x] GET /api/questions/[id]
-- [x] GET /api/questions/stats
+1. Frontend API routes (`/api/sync`) require session authentication
+2. Frontend proxies authenticated requests to backend
+3. Backend validates requests via CORS
 
-### Pages
+Alternative: Add authentication to backend Workers, but this adds complexity.
 
-- [x] /login
-- [x] /study
-- [x] /questions
-- [x] /questions/[id]
-- [x] /settings
+### Why Not Use Server Components?
 
-### Security
+Next.js on Cloudflare Pages currently works best with static export. The settings page uses client-side data fetching for simplicity and compatibility.
 
-- [x] Middleware protection
-- [x] Session management
-- [x] Secure cookies
-- [x] Environment variables
+### Sync: Script vs. API?
 
-## Next Steps
+- **Current**: Standalone script (`pnpm sync`) - good for cron jobs
+- **Proposed**: API endpoint - enables UI-triggered sync
+- **Recommendation**: Support both. Keep script for automation, add API for convenience.
 
-After completing all specs:
+## Future Enhancements
 
-1. Begin implementation following each spec in order
-2. Test each component before moving to next
-3. Deploy to Cloudflare Pages
-4. Monitor OpenAI API usage
-5. Collect feedback and iterate
+### Near-term
+- [ ] Add more question sources to `sources.ts`
+- [ ] Implement "Clear All Answer History" button
+- [ ] Add manual question creation form
+- [ ] Display sync progress percentage
+
+### Long-term
+- [ ] Schedule automatic syncs (Cloudflare Cron Triggers)
+- [ ] Email notifications for sync failures
+- [ ] Question approval workflow (review before adding)
+- [ ] Custom parsing rules per source
+- [ ] Export questions to JSON/CSV
+- [ ] Import questions from CSV
 
 ## References
 
-- [Cloudflare Pages](https://developers.cloudflare.com/pages/)
-- [Next.js on Cloudflare](https://developers.cloudflare.com/pages/framework-guides/nextjs/)
-- [D1 Database](https://developers.cloudflare.com/d1/)
+- [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+- [Cloudflare D1 Docs](https://developers.cloudflare.com/d1/)
+- [Cloudflare Pages Docs](https://developers.cloudflare.com/pages/)
+- [Next.js on Cloudflare Pages](https://developers.cloudflare.com/pages/framework-guides/nextjs/)
+- [Hono Framework](https://hono.dev/)
 - [OpenAI API](https://platform.openai.com/docs)
+- [GitHub API (Octokit)](https://github.com/octokit/rest.js)
+
+## Troubleshooting
+
+### Sync fails with "OPENAI_API_KEY not configured"
+
+**Solution:** Set `OPENAI_API_KEY` in Cloudflare Workers environment variables.
+
+```bash
+cd backend
+npx wrangler secret put OPENAI_API_KEY
+# Enter your key when prompted
+```
+
+### Frontend can't reach backend API
+
+**Solution:** Check `BACKEND_API_URL` environment variable.
+
+- Development: `http://localhost:8787`
+- Production: Your Cloudflare Worker URL
+
+### CORS errors when calling backend
+
+**Solution:** Backend CORS configuration allows localhost and HTTPS origins. Verify your frontend URL matches the CORS policy in `backend/src/index.ts`.
+
+### Session authentication fails
+
+**Solution:** Ensure `SESSION_SECRET` matches between frontend and backend.
