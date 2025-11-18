@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { cookies } from "next/headers";
 
 export interface SessionPayload {
   username: string;
@@ -61,4 +62,17 @@ export function getSessionCookieConfig() {
       path: "/",
     },
   };
+}
+
+// Get current session from cookies
+export async function getSession(): Promise<SessionPayload | null> {
+  const cookieStore = await cookies();
+  const env = getEnv();
+  const token = cookieStore.get(env.cookieName)?.value;
+
+  if (!token) {
+    return null;
+  }
+
+  return verifySession(token);
 }
