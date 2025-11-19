@@ -63,10 +63,12 @@ database_id = "5dbc09cb-a3c6-4f2e-b4aa-cef932a2d765"
 **Location:** `backend/src/config/sources.ts`
 
 **Active sources:**
+
 - JavaScript Interview Questions
   - URL: `https://raw.githubusercontent.com/sudheerj/javascript-interview-questions/master/README.md`
 
 **Commented out (can be enabled):**
+
 - Back-End Developer Interview Questions
   - URL: `https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md`
 
@@ -108,13 +110,13 @@ dead_letter_queue = "sync-dlq"
 Create the sync endpoint:
 
 ```typescript
-import { syncAllSources } from './lib/sync';
+import { syncAllSources } from "./lib/sync";
 
 /**
  * POST /api/sync
  * Trigger async GitHub sync using Cloudflare Queues
  */
-app.post('/api/sync', async (c) => {
+app.post("/api/sync", async (c) => {
   try {
     const db = c.env.DB;
 
@@ -126,10 +128,7 @@ app.post('/api/sync', async (c) => {
       .first<{ id: number }>();
 
     if (runningSync) {
-      return c.json(
-        { error: 'A sync is already in progress' },
-        409
-      );
+      return c.json({ error: "A sync is already in progress" }, 409);
     }
 
     // Create metadata record with 'running' status
@@ -150,15 +149,15 @@ app.post('/api/sync', async (c) => {
 
     return c.json({
       success: true,
-      message: 'Sync job queued',
+      message: "Sync job queued",
       syncId: syncRecord.id,
     });
   } catch (error) {
-    console.error('Sync trigger error:', error);
+    console.error("Sync trigger error:", error);
     return c.json(
       {
-        error: 'Failed to trigger sync',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to trigger sync",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       500
     );
@@ -190,12 +189,14 @@ export default {
                questions_inserted = ?,
                questions_updated = ?
            WHERE id = ?`
-        ).bind(
-          new Date().toISOString(),
-          results.reduce((sum, r) => sum + r.inserted, 0),
-          results.reduce((sum, r) => sum + r.updated, 0),
-          syncId
-        ).run();
+        )
+          .bind(
+            new Date().toISOString(),
+            results.reduce((sum, r) => sum + r.inserted, 0),
+            results.reduce((sum, r) => sum + r.updated, 0),
+            syncId
+          )
+          .run();
 
         message.ack();
         console.log(`Sync job ${syncId} completed successfully`);
@@ -209,11 +210,13 @@ export default {
                status = 'failed',
                error_message = ?
            WHERE id = ?`
-        ).bind(
-          new Date().toISOString(),
-          error instanceof Error ? error.message : 'Unknown error',
-          syncId
-        ).run();
+        )
+          .bind(
+            new Date().toISOString(),
+            error instanceof Error ? error.message : "Unknown error",
+            syncId
+          )
+          .run();
 
         message.retry();
       }
@@ -222,7 +225,7 @@ export default {
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     return app.fetch(request, env, ctx);
-  }
+  },
 };
 ```
 
@@ -231,7 +234,7 @@ export default {
 If you don't want to set up queues, you can use `ctx.waitUntil()`, but note that this has time limits (30s for free tier, up to 15 minutes for paid):
 
 ```typescript
-app.post('/api/sync', async (c) => {
+app.post("/api/sync", async (c) => {
   try {
     const db = c.env.DB;
 
@@ -241,7 +244,7 @@ app.post('/api/sync', async (c) => {
       .first<{ id: number }>();
 
     if (runningSync) {
-      return c.json({ error: 'A sync is already in progress' }, 409);
+      return c.json({ error: "A sync is already in progress" }, 409);
     }
 
     // Create metadata record
@@ -260,42 +263,45 @@ app.post('/api/sync', async (c) => {
         try {
           const results = await syncAllSources(db, c.env.OPENAI_API_KEY);
 
-          await db.prepare(
-            `UPDATE sync_metadata
+          await db
+            .prepare(
+              `UPDATE sync_metadata
              SET completed_at = ?, status = 'completed',
                  questions_inserted = ?, questions_updated = ?
              WHERE id = ?`
-          ).bind(
-            new Date().toISOString(),
-            results.reduce((sum, r) => sum + r.inserted, 0),
-            results.reduce((sum, r) => sum + r.updated, 0),
-            syncRecord.id
-          ).run();
+            )
+            .bind(
+              new Date().toISOString(),
+              results.reduce((sum, r) => sum + r.inserted, 0),
+              results.reduce((sum, r) => sum + r.updated, 0),
+              syncRecord.id
+            )
+            .run();
         } catch (error) {
-          await db.prepare(
-            `UPDATE sync_metadata
+          await db
+            .prepare(
+              `UPDATE sync_metadata
              SET completed_at = ?, status = 'failed', error_message = ?
              WHERE id = ?`
-          ).bind(
-            new Date().toISOString(),
-            error instanceof Error ? error.message : 'Unknown error',
-            syncRecord.id
-          ).run();
+            )
+            .bind(
+              new Date().toISOString(),
+              error instanceof Error ? error.message : "Unknown error",
+              syncRecord.id
+            )
+            .run();
         }
       })()
     );
 
     return c.json({
       success: true,
-      message: 'Sync started',
+      message: "Sync started",
       syncId: syncRecord.id,
     });
   } catch (error) {
-    console.error('Sync trigger error:', error);
-    return c.json(
-      { error: 'Failed to trigger sync' },
-      500
-    );
+    console.error("Sync trigger error:", error);
+    return c.json({ error: "Failed to trigger sync" }, 500);
   }
 });
 ```
@@ -314,13 +320,13 @@ The status endpoint provides real-time information about sync progress. The fron
  * Get current sync status and question count
  * This is a read-only endpoint - sync runs as a batch job
  */
-app.get('/api/sync/status', async (c) => {
+app.get("/api/sync/status", async (c) => {
   try {
     const db = c.env.DB;
 
     // Get total question count
     const { count } = await db
-      .prepare('SELECT COUNT(*) as count FROM questions')
+      .prepare("SELECT COUNT(*) as count FROM questions")
       .first<{ count: number }>();
 
     // Get last successful sync from metadata
@@ -363,8 +369,8 @@ app.get('/api/sync/status', async (c) => {
       runningSince: runningSync?.started_at || null,
     });
   } catch (error) {
-    console.error('Status error:', error);
-    return c.json({ error: 'Failed to get sync status' }, 500);
+    console.error("Status error:", error);
+    return c.json({ error: "Failed to get sync status" }, 500);
   }
 });
 ```
@@ -445,11 +451,7 @@ try {
            error_message = ?
        WHERE id = ?`
     )
-    .bind(
-      new Date().toISOString(),
-      error.message,
-      syncRecord.id
-    )
+    .bind(new Date().toISOString(), error.message, syncRecord.id)
     .run();
   throw error;
 }
@@ -464,7 +466,7 @@ try {
  * GET /api/sync/history
  * Get recent sync history
  */
-app.get('/api/sync/history', async (c) => {
+app.get("/api/sync/history", async (c) => {
   try {
     const db = c.env.DB;
 
@@ -481,8 +483,8 @@ app.get('/api/sync/history', async (c) => {
       history: history.results || [],
     });
   } catch (error) {
-    console.error('History error:', error);
-    return c.json({ error: 'Failed to get sync history' }, 500);
+    console.error("History error:", error);
+    return c.json({ error: "Failed to get sync history" }, 500);
   }
 });
 ```
@@ -507,12 +509,12 @@ Since the frontend runs on Cloudflare Pages and the backend runs on Cloudflare W
 **Location:** `frontend/src/app/api/sync/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
+import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
-const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:8787';
+const BACKEND_URL = process.env.BACKEND_API_URL || "http://localhost:8787";
 
 export async function POST() {
   try {
@@ -521,7 +523,7 @@ export async function POST() {
 
     // Forward to backend
     const response = await fetch(`${BACKEND_URL}/api/sync`, {
-      method: 'POST',
+      method: "POST",
     });
 
     const data = await response.json();
@@ -532,13 +534,13 @@ export async function POST() {
 
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.error('Sync proxy error:', error);
+    console.error("Sync proxy error:", error);
     return NextResponse.json(
-      { error: 'Failed to trigger sync' },
+      { error: "Failed to trigger sync" },
       { status: 500 }
     );
   }
@@ -550,12 +552,12 @@ export async function POST() {
 **Location:** `frontend/src/app/api/sync/status/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/session';
+import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
-const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:8787';
+const BACKEND_URL = process.env.BACKEND_API_URL || "http://localhost:8787";
 
 export async function GET() {
   try {
@@ -570,12 +572,12 @@ export async function GET() {
 
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Failed to get sync status' },
+      { error: "Failed to get sync status" },
       { status: 500 }
     );
   }
@@ -1260,6 +1262,7 @@ Next.js on Cloudflare Pages currently works best with static export. The setting
 ## Future Enhancements
 
 ### Near-term
+
 - [ ] Add more question sources to `sources.ts`
 - [ ] Implement "Clear All Answer History" button
 - [ ] Add manual question creation form
@@ -1269,6 +1272,7 @@ Next.js on Cloudflare Pages currently works best with static export. The setting
 - [ ] Cancel running sync functionality
 
 ### Long-term
+
 - [ ] Email/webhook notifications for sync failures
 - [ ] Slack integration for sync status updates
 - [ ] Real-time sync progress using WebSockets or Server-Sent Events
