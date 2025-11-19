@@ -4,7 +4,7 @@
 
 Implement the settings/admin page for monitoring sync status, managing configuration, and viewing system status. This document describes the implementation plan for adding a settings interface to the Anki Interview App, which is built on **Cloudflare infrastructure** (Workers + D1 + Pages).
 
-**Key Design Decision**: GitHub sync runs as a **batch job** (scheduled via cron or external scheduler) rather than a real-time API operation, due to long execution times (several minutes) that would cause HTTP timeouts. The settings page displays read-only status and history of these batch jobs.
+**Key Design Decision**: GitHub sync runs as an **asynchronous batch job** that can be triggered via API (POST `/api/sync`) or scheduled via cron. The sync executes in the background using Cloudflare Queues or `ctx.waitUntil()` to avoid HTTP timeouts. The settings page monitors progress by polling the `/api/sync/status` endpoint.
 
 ## Current Implementation Status
 
@@ -21,13 +21,13 @@ Implement the settings/admin page for monitoring sync status, managing configura
 ### ❌ Not Yet Implemented
 
 - **Settings Page**: No UI exists (referenced in navigation but returns 404)
-- **Sync Status API Endpoints**: No `/api/sync/status` or `/api/sync/history` endpoints
-- **Batch Job Scheduling**: No cron trigger configured for automatic sync
+- **Sync API Endpoints**: No `/api/sync` (POST), `/api/sync/status`, or `/api/sync/history` endpoints
+- **Async Job Infrastructure**: No Cloudflare Queue or background job handling configured
 - **Global Navigation Component**: No unified navigation across pages
 - **Sync Metadata Table**: No database tracking of sync history
 - **Backend API Authentication**: Backend endpoints have no auth (rely on CORS only)
 
-**Note**: Manual sync via CLI (`pnpm sync`) already works, but needs to be scheduled as a batch job.
+**Note**: Manual sync via CLI (`pnpm sync`) already works, but needs API endpoint for UI-triggered execution.
 
 ## Infrastructure
 
@@ -75,68 +75,148 @@ database_id = "5dbc09cb-a3c6-4f2e-b4aa-cef932a2d765"
 - [x] Database setup completed (Cloudflare D1)
 - [x] Authentication implemented (frontend JWT sessions)
 - [x] GitHub sync script exists (`backend/scripts/sync-github.ts`)
-- [ ] Batch job scheduling (Cloudflare Cron or external scheduler)
-- [ ] Sync metadata table for tracking batch job executions
+- [ ] Async job infrastructure (Cloudflare Queues or ctx.waitUntil)
+- [ ] Sync metadata table for tracking job executions
+- [ ] Optional: Cron trigger for scheduled automatic syncs
 
 ## Implementation Tasks
 
 ### 1. Backend API Endpoints
 
-The sync functionality exists as a standalone script (`backend/scripts/sync-github.ts`) and should be run as a **batch job** due to its long execution time. The sync process involves fetching from GitHub, parsing with OpenAI, and updating the database, which can take several minutes to complete.
+The sync functionality exists as a standalone script (`backend/scripts/sync-github.ts`) and should be exposed as an API endpoint that executes **asynchronously** to avoid HTTP timeouts. The sync process involves fetching from GitHub, parsing with OpenAI, and updating the database, which can take several minutes to complete.
 
-#### 1.1 Batch Job Approach (Recommended)
+#### 1.1 Create async sync trigger endpoint
 
-**Why batch job?** The `sync-github` operation:
-- Takes a long time to complete (several minutes)
-- Makes multiple external API calls (GitHub, OpenAI)
-- Processes large amounts of data
-- Should not block HTTP requests or timeout
+**Location:** `backend/src/index.ts`
 
-**Implementation options:**
+**Approach: Using Cloudflare Queues (Recommended)**
 
-**Option A: Cloudflare Cron Triggers (Recommended)**
-
-Configure in `backend/wrangler.toml`:
+First, configure a queue in `backend/wrangler.toml`:
 
 ```toml
-[triggers]
-crons = ["0 2 * * *"]  # Run daily at 2 AM UTC
+[[queues.producers]]
+queue = "sync-queue"
+binding = "SYNC_QUEUE"
+
+[[queues.consumers]]
+queue = "sync-queue"
+max_batch_size = 1
+max_retries = 2
+dead_letter_queue = "sync-dlq"
 ```
 
-Add cron handler in `backend/src/index.ts`:
+Create the sync endpoint:
 
 ```typescript
+import { syncAllSources } from './lib/sync';
+
+/**
+ * POST /api/sync
+ * Trigger async GitHub sync using Cloudflare Queues
+ */
+app.post('/api/sync', async (c) => {
+  try {
+    const db = c.env.DB;
+
+    // Check if a sync is already running
+    const runningSync = await db
+      .prepare(
+        `SELECT id FROM sync_metadata WHERE status = 'running' ORDER BY started_at DESC LIMIT 1`
+      )
+      .first<{ id: number }>();
+
+    if (runningSync) {
+      return c.json(
+        { error: 'A sync is already in progress' },
+        409
+      );
+    }
+
+    // Create metadata record with 'running' status
+    const syncRecord = await db
+      .prepare(
+        `INSERT INTO sync_metadata (started_at, status)
+         VALUES (?, 'running')
+         RETURNING id`
+      )
+      .bind(new Date().toISOString())
+      .first<{ id: number }>();
+
+    // Send sync job to queue
+    await c.env.SYNC_QUEUE.send({
+      syncId: syncRecord.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    return c.json({
+      success: true,
+      message: 'Sync job queued',
+      syncId: syncRecord.id,
+    });
+  } catch (error) {
+    console.error('Sync trigger error:', error);
+    return c.json(
+      {
+        error: 'Failed to trigger sync',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
+  }
+});
+```
+
+Create the queue consumer:
+
+```typescript
+/**
+ * Queue consumer for processing sync jobs
+ */
 export default {
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    console.log('Starting scheduled GitHub sync...');
+  async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext) {
+    for (const message of batch.messages) {
+      const { syncId } = message.body;
 
-    try {
-      const results = await syncAllSources(env.DB, env.OPENAI_API_KEY);
+      try {
+        console.log(`Processing sync job ${syncId}...`);
 
-      // Log results to sync_metadata table
-      await env.DB.prepare(
-        `INSERT INTO sync_metadata (started_at, completed_at, status, questions_inserted, questions_updated)
-         VALUES (?, ?, 'completed', ?, ?)`
-      ).bind(
-        event.scheduledTime,
-        new Date().toISOString(),
-        results.reduce((sum, r) => sum + r.inserted, 0),
-        results.reduce((sum, r) => sum + r.updated, 0)
-      ).run();
+        const results = await syncAllSources(env.DB, env.OPENAI_API_KEY);
 
-      console.log('Scheduled sync completed:', results);
-    } catch (error) {
-      console.error('Scheduled sync failed:', error);
+        // Update metadata with success
+        await env.DB.prepare(
+          `UPDATE sync_metadata
+           SET completed_at = ?,
+               status = 'completed',
+               questions_inserted = ?,
+               questions_updated = ?
+           WHERE id = ?`
+        ).bind(
+          new Date().toISOString(),
+          results.reduce((sum, r) => sum + r.inserted, 0),
+          results.reduce((sum, r) => sum + r.updated, 0),
+          syncId
+        ).run();
 
-      // Log failure to sync_metadata
-      await env.DB.prepare(
-        `INSERT INTO sync_metadata (started_at, completed_at, status, error_message)
-         VALUES (?, ?, 'failed', ?)`
-      ).bind(
-        event.scheduledTime,
-        new Date().toISOString(),
-        error instanceof Error ? error.message : 'Unknown error'
-      ).run();
+        message.ack();
+        console.log(`Sync job ${syncId} completed successfully`);
+      } catch (error) {
+        console.error(`Sync job ${syncId} failed:`, error);
+
+        // Update metadata with failure
+        await env.DB.prepare(
+          `UPDATE sync_metadata
+           SET completed_at = ?,
+               status = 'failed',
+               error_message = ?
+           WHERE id = ?`
+        ).bind(
+          new Date().toISOString(),
+          error instanceof Error ? error.message : 'Unknown error',
+          syncId
+        ).run();
+
+        message.retry();
+      }
     }
   },
 
@@ -146,47 +226,85 @@ export default {
 };
 ```
 
-**Option B: External Scheduler (GitHub Actions, etc.)**
+**Alternative Approach: Using ctx.waitUntil() (Simpler, but limited)**
 
-Run the sync script via GitHub Actions:
+If you don't want to set up queues, you can use `ctx.waitUntil()`, but note that this has time limits (30s for free tier, up to 15 minutes for paid):
 
-```yaml
-# .github/workflows/sync-github.yml
-name: Sync GitHub Questions
-on:
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
-  workflow_dispatch:  # Manual trigger
+```typescript
+app.post('/api/sync', async (c) => {
+  try {
+    const db = c.env.DB;
 
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: cd backend && npm install
-      - run: cd backend && npx wrangler d1 execute anki-interview-db-prod --remote --command "$(node scripts/sync-github.js)"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    // Check if sync already running
+    const runningSync = await db
+      .prepare(`SELECT id FROM sync_metadata WHERE status = 'running' LIMIT 1`)
+      .first<{ id: number }>();
+
+    if (runningSync) {
+      return c.json({ error: 'A sync is already in progress' }, 409);
+    }
+
+    // Create metadata record
+    const syncRecord = await db
+      .prepare(
+        `INSERT INTO sync_metadata (started_at, status)
+         VALUES (?, 'running')
+         RETURNING id`
+      )
+      .bind(new Date().toISOString())
+      .first<{ id: number }>();
+
+    // Run sync in background using waitUntil
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          const results = await syncAllSources(db, c.env.OPENAI_API_KEY);
+
+          await db.prepare(
+            `UPDATE sync_metadata
+             SET completed_at = ?, status = 'completed',
+                 questions_inserted = ?, questions_updated = ?
+             WHERE id = ?`
+          ).bind(
+            new Date().toISOString(),
+            results.reduce((sum, r) => sum + r.inserted, 0),
+            results.reduce((sum, r) => sum + r.updated, 0),
+            syncRecord.id
+          ).run();
+        } catch (error) {
+          await db.prepare(
+            `UPDATE sync_metadata
+             SET completed_at = ?, status = 'failed', error_message = ?
+             WHERE id = ?`
+          ).bind(
+            new Date().toISOString(),
+            error instanceof Error ? error.message : 'Unknown error',
+            syncRecord.id
+          ).run();
+        }
+      })()
+    );
+
+    return c.json({
+      success: true,
+      message: 'Sync started',
+      syncId: syncRecord.id,
+    });
+  } catch (error) {
+    console.error('Sync trigger error:', error);
+    return c.json(
+      { error: 'Failed to trigger sync' },
+      500
+    );
+  }
+});
 ```
 
-**Option C: Manual Execution**
+**Note:** Extract sync logic from `scripts/sync-github.ts` into a reusable `lib/sync.ts` module.
 
-For development or on-demand syncing:
+#### 1.2 Create sync status endpoint
 
-```bash
-cd backend
-pnpm sync  # Runs the standalone script
-```
-
-**Note:** This requires extracting the sync logic from `scripts/sync-github.ts` into a reusable library function for the cron approach.
-
-#### 1.2 Create sync status endpoint (Read-only)
-
-Since sync runs as a batch job, the status endpoint provides read-only information about the last sync and current state.
+The status endpoint provides real-time information about sync progress. The frontend polls this endpoint to monitor ongoing sync operations.
 
 **Location:** `backend/src/index.ts`
 
@@ -371,21 +489,63 @@ app.get('/api/sync/history', async (c) => {
 
 **Acceptance Criteria:**
 
-- [ ] Batch job configured (Cloudflare Cron or external scheduler)
-- [ ] Sync executes on schedule without blocking HTTP requests
+- [ ] POST /api/sync triggers async sync job (via Queue or waitUntil)
+- [ ] POST /api/sync prevents concurrent syncs (returns 409 if already running)
+- [ ] Async job executes without blocking HTTP request
 - [ ] GET /api/sync/status returns question count, last sync time, and running status
 - [ ] GET /api/sync/history returns sync history from metadata table
 - [ ] Sync metadata table tracks all sync executions (success/failure)
-- [ ] Error handling for missing API keys
+- [ ] Error handling for missing API keys and sync failures
 - [ ] CORS configured to allow frontend requests
 
 ### 2. Frontend API Routes (Proxy Layer)
 
-Since the frontend runs on Cloudflare Pages and the backend runs on Cloudflare Workers, we need to proxy read-only status requests through frontend API routes to add authentication.
+Since the frontend runs on Cloudflare Pages and the backend runs on Cloudflare Workers, we need to proxy sync requests through frontend API routes to add authentication.
 
-**Note:** No sync trigger endpoint is needed since sync runs as a batch job.
+#### 2.1 Create sync trigger proxy endpoint
 
-#### 2.1 Create sync status proxy endpoint
+**Location:** `frontend/src/app/api/sync/route.ts`
+
+```typescript
+import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+
+export const runtime = 'edge';
+
+const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:8787';
+
+export async function POST() {
+  try {
+    // Require authentication
+    await requireSession();
+
+    // Forward to backend
+    const response = await fetch(`${BACKEND_URL}/api/sync`, {
+      method: 'POST',
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.error('Sync proxy error:', error);
+    return NextResponse.json(
+      { error: 'Failed to trigger sync' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+#### 2.2 Create sync status proxy endpoint
 
 **Location:** `frontend/src/app/api/sync/status/route.ts`
 
@@ -422,7 +582,7 @@ export async function GET() {
 }
 ```
 
-#### 2.2 Environment variables
+#### 2.3 Environment variables
 
 Add to `frontend/.env.local`:
 
@@ -438,9 +598,11 @@ BACKEND_API_URL=https://anki-interview-app.your-worker.workers.dev
 
 **Acceptance Criteria:**
 
-- [ ] Frontend API route proxies status requests to backend
-- [ ] Authentication required for viewing sync status
-- [ ] Error handling for backend failures
+- [ ] Frontend API routes proxy sync trigger and status requests to backend
+- [ ] Authentication required for triggering sync and viewing status
+- [ ] POST /api/sync returns sync job ID and success message
+- [ ] GET /api/sync/status returns current sync state
+- [ ] Error handling for backend failures and concurrent sync attempts
 - [ ] BACKEND_API_URL configured for dev and production
 
 ### 3. Settings Page UI
@@ -469,14 +631,18 @@ interface SyncStatus {
 
 export default function SettingsPage() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadStatus();
-    // Refresh status every 30 seconds to check for batch job updates
-    const interval = setInterval(loadStatus, 30000);
+    // Poll status every 5 seconds when syncing, 30 seconds when idle
+    const interval = setInterval(
+      loadStatus,
+      status?.isRunning ? 5000 : 30000
+    );
     return () => clearInterval(interval);
-  }, []);
+  }, [status?.isRunning]);
 
   const loadStatus = async () => {
     try {
@@ -494,18 +660,39 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/sync', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          setError('A sync is already in progress');
+        } else {
+          setError(data.error || 'Failed to start sync');
+        }
+        return;
+      }
+
+      // Start polling for status updates
+      await loadStatus();
+    } catch (err) {
+      setError('Network error. Please try again.');
+      console.error('Sync error:', err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
     return new Date(dateString).toLocaleString();
-  };
-
-  const getNextSyncTime = () => {
-    // Assuming daily sync at 2 AM UTC
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    tomorrow.setUTCHours(2, 0, 0, 0);
-    return tomorrow.toLocaleString();
   };
 
   return (
@@ -580,9 +767,9 @@ export default function SettingsPage() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">GitHub Sync</h2>
           <p className="text-gray-600 mb-4">
-            Questions are automatically synced from configured GitHub repositories
-            using a scheduled batch job. The sync process runs daily at 2:00 AM UTC
-            and uses OpenAI to parse questions from markdown files.
+            Sync interview questions from configured GitHub repositories. The sync
+            process uses OpenAI to parse questions from markdown files and runs
+            asynchronously in the background.
           </p>
 
           {status?.isRunning && (
@@ -594,24 +781,34 @@ export default function SettingsPage() {
                   <div className="text-sm">
                     Started {formatDate(status.runningSince)}
                   </div>
+                  <div className="text-xs mt-1">
+                    This page will auto-refresh to show progress...
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Sync Schedule:</span>
-              <span className="font-medium">Daily at 2:00 AM UTC</span>
+          <button
+            onClick={handleSync}
+            disabled={syncing || status?.isRunning}
+            className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          >
+            {syncing
+              ? 'Starting...'
+              : status?.isRunning
+              ? 'Sync Running...'
+              : 'Sync from GitHub'}
+          </button>
+
+          {syncing && (
+            <div className="mt-4 text-sm text-gray-600">
+              Starting sync job. Please wait...
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Next Scheduled Sync:</span>
-              <span className="font-medium">{getNextSyncTime()}</span>
-            </div>
-          </div>
+          )}
 
           <p className="mt-4 text-sm text-gray-500">
-            To manually trigger a sync, use the command line:{' '}
+            For command line sync:{' '}
             <code className="bg-gray-100 px-2 py-1 rounded">
               cd backend && pnpm sync
             </code>
@@ -677,14 +874,15 @@ export default function SettingsPage() {
 **Acceptance Criteria:**
 
 - [ ] Displays system status (question count, last sync, sync status)
-- [ ] Shows sync schedule and next scheduled run time
-- [ ] Auto-refreshes status every 30 seconds
-- [ ] Shows "Syncing..." indicator when batch job is running
+- [ ] "Sync from GitHub" button triggers sync via POST /api/sync
+- [ ] Button disabled when sync is already running
+- [ ] Auto-refreshes status every 5 seconds when syncing, 30 seconds when idle
+- [ ] Shows "Syncing..." indicator with spinner when job is running
 - [ ] Displays last sync results (inserted/updated counts)
 - [ ] Shows configured sources (JavaScript Interview Questions)
-- [ ] Includes instructions for manual sync via CLI
+- [ ] Includes instructions for manual CLI sync
 - [ ] Logout button present
-- [ ] Error handling for status fetch failures
+- [ ] Error handling for sync failures and concurrent sync attempts
 - [ ] Responsive design
 
 ### 4. Navigation Component (Optional)
@@ -873,13 +1071,18 @@ pnpm dev
 # Test endpoints
 curl http://localhost:8787/health
 curl http://localhost:8787/api/sync/status
+
+# Trigger sync via API
+curl -X POST http://localhost:8787/api/sync
+
+# Monitor status
+watch -n 2 'curl http://localhost:8787/api/sync/status'
+
+# Check sync history
 curl http://localhost:8787/api/sync/history
 
-# Test batch job manually
-pnpm sync
-
-# Test cron trigger (if configured)
-# Use Cloudflare dashboard to manually trigger the cron
+# Test concurrent sync prevention
+curl -X POST http://localhost:8787/api/sync  # Should return 409 if already running
 ```
 
 #### 6.2 Frontend testing
@@ -892,9 +1095,13 @@ pnpm dev
 # Test in browser
 # 1. Navigate to http://localhost:3000/settings
 # 2. Verify system status displays (question count, last sync, status)
-# 3. Verify sync schedule information shows
-# 4. Verify page auto-refreshes (check network tab after 30s)
-# 5. Trigger a manual sync via CLI and verify status updates
+# 3. Click "Sync from GitHub" button
+# 4. Verify button changes to "Sync Running..." and is disabled
+# 5. Verify "Syncing..." indicator appears with spinner
+# 6. Verify page polls status every 5 seconds (check network tab)
+# 7. Wait for sync to complete
+# 8. Verify status updates to "Idle" and question count increases
+# 9. Try clicking sync button again while sync is running (should show error)
 ```
 
 #### 6.3 Manual testing checklist
@@ -903,16 +1110,22 @@ pnpm dev
 
 - [ ] Navigate to /settings
 - [ ] System status displays correctly (question count, last sync time, status)
-- [ ] Sync schedule shows "Daily at 2:00 AM UTC"
-- [ ] Next scheduled sync time displays correctly
-- [ ] Status auto-refreshes every 30 seconds
-- [ ] When sync is running, shows "Syncing..." indicator with yellow status
+- [ ] "Sync from GitHub" button visible and enabled when idle
+- [ ] Click sync button → sync starts
+- [ ] Button changes to "Sync Running..." and is disabled during sync
+- [ ] "Syncing..." indicator appears with animated spinner
+- [ ] Status polls every 5 seconds during sync (check network tab)
+- [ ] Status polls every 30 seconds when idle
+- [ ] When sync is running, shows yellow pulsing status indicator
 - [ ] When sync is idle, shows green "Idle" status
 - [ ] Last sync results show inserted/updated counts
-- [ ] Manual sync instructions displayed
+- [ ] Trying to start concurrent sync shows error message
+- [ ] After sync completes, button re-enables and status updates
+- [ ] Question count updates after successful sync
+- [ ] CLI sync instructions displayed
 - [ ] Configured sources listed (JavaScript Interview Questions)
 - [ ] Logout button works
-- [ ] Error handling works for status fetch failures
+- [ ] Error handling works for sync failures and status fetch failures
 
 **Navigation (if implemented):**
 
@@ -925,10 +1138,12 @@ pnpm dev
 
 - [ ] Can log in successfully
 - [ ] Settings page requires authentication
+- [ ] Sync trigger endpoint requires authentication
 - [ ] Status endpoint requires authentication
-- [ ] Batch job runs successfully (manual or scheduled)
-- [ ] Questions synced by batch job appear in study flow
+- [ ] Sync job runs asynchronously without blocking UI
+- [ ] Questions synced via API appear in study flow immediately after completion
 - [ ] Answer tracking works after sync
+- [ ] Concurrent sync attempts properly prevented (409 error)
 
 ### 7. Deployment
 
@@ -937,14 +1152,18 @@ pnpm dev
 ```bash
 cd backend
 
+# Create Cloudflare Queue (if using queue approach)
+npx wrangler queues create sync-queue
+npx wrangler queues create sync-dlq  # Dead letter queue
+
+# Run production migration (add sync_metadata table)
+npx wrangler d1 migrations apply anki-interview-db-prod --remote
+
 # Deploy to production
 pnpm deploy
 
 # Or manually
 npx wrangler deploy
-
-# Run production migration (if adding sync_metadata table)
-npx wrangler d1 migrations apply anki-interview-db-prod --remote
 ```
 
 #### 7.2 Deploy frontend
@@ -967,10 +1186,14 @@ npx wrangler pages deploy .next
 - [ ] Can log in with credentials
 - [ ] Settings page loads
 - [ ] Status endpoint returns current data
-- [ ] Cron trigger configured correctly (check Cloudflare dashboard)
-- [ ] Manual sync works via CLI (`cd backend && pnpm sync`)
-- [ ] Questions appear in study flow after sync
+- [ ] Click "Sync from GitHub" button → sync triggers
+- [ ] Sync runs asynchronously (page remains responsive)
+- [ ] Status updates during sync (poll every 5 seconds)
+- [ ] Queue processes job successfully (check Cloudflare dashboard)
+- [ ] Concurrent sync prevented (try clicking button twice)
+- [ ] Questions appear in study flow after sync completes
 - [ ] All navigation works
+- [ ] Optional: Verify cron trigger if configured for scheduled syncs
 
 ## Success Criteria
 
@@ -980,11 +1203,12 @@ npx wrangler pages deploy .next
 - [ ] Displays total question count
 - [ ] Shows last sync timestamp and results
 - [ ] Shows current sync status (idle/syncing)
-- [ ] Displays sync schedule and next run time
-- [ ] Batch job configured to run on schedule
-- [ ] Auto-refreshes status to show batch job progress
-- [ ] Includes manual sync instructions
-- [ ] Error handling for status fetch failures
+- [ ] "Sync from GitHub" button triggers async sync via API
+- [ ] Button disabled during sync to prevent concurrent runs
+- [ ] Auto-refreshes status to show real-time progress (5s when syncing, 30s when idle)
+- [ ] Async job infrastructure configured (Queues or waitUntil)
+- [ ] Includes CLI sync instructions for manual execution
+- [ ] Error handling for sync failures, concurrent attempts, and status fetch failures
 - [ ] Logout functionality present
 
 ### Full Implementation (Optional)
@@ -1012,22 +1236,26 @@ Alternative: Add authentication to backend Workers, but this adds complexity.
 
 Next.js on Cloudflare Pages currently works best with static export. The settings page uses client-side data fetching for simplicity and compatibility.
 
-### Sync: Batch Job vs. Real-time API?
+### Sync: Async API vs. Real-time Blocking?
 
 - **Problem**: GitHub sync takes several minutes and involves multiple external API calls (GitHub, OpenAI)
-- **Real-time approach**: POST /api/sync endpoint triggered from UI
+- **Blocking approach**: Synchronous POST /api/sync that waits for completion
   - ❌ Long execution time causes HTTP timeouts
-  - ❌ Blocks Workers request duration limits
-  - ❌ Poor user experience (user waits several minutes)
-- **Batch job approach**: Scheduled execution (cron triggers or external scheduler)
-  - ✅ Runs asynchronously without blocking
-  - ✅ No timeout concerns
-  - ✅ Can be monitored via status endpoint
-  - ✅ Manual execution still available via CLI
-- **Decision**: Use batch job approach with scheduled execution
-  - Cloudflare Cron Triggers for automatic daily sync
-  - CLI script (`pnpm sync`) for manual/on-demand execution
-  - Read-only status API to monitor batch job progress
+  - ❌ Blocks Workers request duration limits (30s free, 15min paid)
+  - ❌ Poor user experience (user waits several minutes for response)
+- **Async API approach**: POST /api/sync triggers background job, returns immediately
+  - ✅ API responds immediately with job ID
+  - ✅ Runs asynchronously without blocking HTTP request
+  - ✅ No timeout concerns (job runs independently)
+  - ✅ Can be monitored in real-time via polling status endpoint
+  - ✅ User can trigger on-demand from UI
+  - ✅ Prevents concurrent syncs (409 error if already running)
+- **Decision**: Use async API approach
+  - POST /api/sync triggers async job (Cloudflare Queues or ctx.waitUntil)
+  - GET /api/sync/status for monitoring progress
+  - Frontend polls status every 5 seconds during sync
+  - Optional: Add Cloudflare Cron Triggers for scheduled automatic syncs
+  - CLI script (`pnpm sync`) remains available for direct execution
 
 ## Future Enhancements
 
@@ -1036,23 +1264,28 @@ Next.js on Cloudflare Pages currently works best with static export. The setting
 - [ ] Implement "Clear All Answer History" button
 - [ ] Add manual question creation form
 - [ ] Display detailed sync history with per-source results
-- [ ] Configure sync schedule from UI (instead of hardcoded cron)
+- [ ] Show sync progress bar or percentage (requires periodic status updates in queue consumer)
+- [ ] Add Cloudflare Cron Trigger for automatic scheduled syncs (e.g., daily at 2 AM UTC)
+- [ ] Cancel running sync functionality
 
 ### Long-term
 - [ ] Email/webhook notifications for sync failures
 - [ ] Slack integration for sync status updates
-- [ ] Display sync progress percentage (requires streaming status updates)
+- [ ] Real-time sync progress using WebSockets or Server-Sent Events
+- [ ] Sync specific sources on-demand (not all sources at once)
 - [ ] Question approval workflow (review before adding)
 - [ ] Custom parsing rules per source
 - [ ] Export questions to JSON/CSV
 - [ ] Import questions from CSV
-- [ ] Multiple sync schedules for different sources
+- [ ] Configure sync schedule from UI (instead of hardcoded cron)
 
 ## References
 
 - [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+- [Cloudflare Queues Docs](https://developers.cloudflare.com/queues/)
 - [Cloudflare D1 Docs](https://developers.cloudflare.com/d1/)
 - [Cloudflare Pages Docs](https://developers.cloudflare.com/pages/)
+- [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 - [Next.js on Cloudflare Pages](https://developers.cloudflare.com/pages/framework-guides/nextjs/)
 - [Hono Framework](https://hono.dev/)
 - [OpenAI API](https://platform.openai.com/docs)
