@@ -5,19 +5,20 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { syncAllSources, calculateSyncTotals } from "./lib/sync";
+import { getAllSources } from "./config/sources";
 
 export interface Env {
   DB: D1Database;
   APP_USERNAME: string;
   APP_PASSWORD_HASH: string;
   SESSION_SECRET: string;
+  OPENAI_API_KEY: string;
+  OPENAI_MODEL?: string;
+  GITHUB_TOKEN?: string;
 }
 
-type Bindings = {
-  DB: D1Database;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Env }>();
 
 // Enable CORS for frontend
 app.use(
@@ -381,6 +382,192 @@ app.get("/api/questions", async (c) => {
   } catch (error) {
     console.error("Get questions error:", error);
     return c.json({ error: "Failed to get questions" }, 500);
+  }
+});
+
+// Sync endpoints
+
+/**
+ * POST /api/sync
+ * Trigger async GitHub sync using ctx.waitUntil
+ */
+app.post("/api/sync", async (c) => {
+  try {
+    const db = c.env.DB;
+
+    // Check if a sync is already running
+    const runningSync = await db
+      .prepare(
+        `SELECT id FROM sync_metadata WHERE status = 'running' ORDER BY started_at DESC LIMIT 1`
+      )
+      .first<{ id: number }>();
+
+    if (runningSync) {
+      return c.json({ error: "A sync is already in progress" }, 409);
+    }
+
+    // Create metadata record with 'running' status
+    const syncRecord = await db
+      .prepare(
+        `INSERT INTO sync_metadata (started_at, status, sources_count)
+         VALUES (?, 'running', ?)
+         RETURNING id`
+      )
+      .bind(new Date().toISOString(), getAllSources().length)
+      .first<{ id: number }>();
+
+    if (!syncRecord) {
+      return c.json({ error: "Failed to create sync record" }, 500);
+    }
+
+    // Run sync in background using waitUntil
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          const apiKey = c.env.OPENAI_API_KEY;
+          const model = c.env.OPENAI_MODEL || "gpt-4o-mini";
+          const githubToken = c.env.GITHUB_TOKEN;
+
+          if (!apiKey) {
+            throw new Error("OPENAI_API_KEY not configured");
+          }
+
+          const results = await syncAllSources(db, apiKey, model, githubToken);
+          const totals = calculateSyncTotals(results);
+
+          await db
+            .prepare(
+              `UPDATE sync_metadata
+             SET completed_at = ?, status = 'completed',
+                 questions_inserted = ?, questions_updated = ?
+             WHERE id = ?`
+            )
+            .bind(
+              new Date().toISOString(),
+              totals.inserted,
+              totals.updated,
+              syncRecord.id
+            )
+            .run();
+
+          console.log(`Sync job ${syncRecord.id} completed successfully`);
+        } catch (error) {
+          console.error(`Sync job ${syncRecord.id} failed:`, error);
+
+          await db
+            .prepare(
+              `UPDATE sync_metadata
+             SET completed_at = ?, status = 'failed', error_message = ?
+             WHERE id = ?`
+            )
+            .bind(
+              new Date().toISOString(),
+              error instanceof Error ? error.message : "Unknown error",
+              syncRecord.id
+            )
+            .run();
+        }
+      })()
+    );
+
+    return c.json({
+      success: true,
+      message: "Sync started",
+      syncId: syncRecord.id,
+    });
+  } catch (error) {
+    console.error("Sync trigger error:", error);
+    return c.json(
+      {
+        error: "Failed to trigger sync",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/sync/status
+ * Get current sync status and question count
+ */
+app.get("/api/sync/status", async (c) => {
+  try {
+    const db = c.env.DB;
+
+    // Get total question count
+    const countResult = await db
+      .prepare("SELECT COUNT(*) as count FROM questions")
+      .first<{ count: number }>();
+
+    // Get last successful sync from metadata
+    const lastSync = await db
+      .prepare(
+        `SELECT completed_at, questions_inserted, questions_updated, status
+         FROM sync_metadata
+         WHERE status = 'completed'
+         ORDER BY completed_at DESC
+         LIMIT 1`
+      )
+      .first<{
+        completed_at: string;
+        questions_inserted: number;
+        questions_updated: number;
+        status: string;
+      }>();
+
+    // Check if a sync is currently running
+    const runningSync = await db
+      .prepare(
+        `SELECT started_at
+         FROM sync_metadata
+         WHERE status = 'running'
+         ORDER BY started_at DESC
+         LIMIT 1`
+      )
+      .first<{ started_at: string }>();
+
+    return c.json({
+      totalQuestions: countResult?.count || 0,
+      lastSync: lastSync
+        ? {
+            timestamp: lastSync.completed_at,
+            inserted: lastSync.questions_inserted,
+            updated: lastSync.questions_updated,
+          }
+        : null,
+      isRunning: !!runningSync,
+      runningSince: runningSync?.started_at || null,
+    });
+  } catch (error) {
+    console.error("Status error:", error);
+    return c.json({ error: "Failed to get sync status" }, 500);
+  }
+});
+
+/**
+ * GET /api/sync/history
+ * Get recent sync history
+ */
+app.get("/api/sync/history", async (c) => {
+  try {
+    const db = c.env.DB;
+
+    const history = await db
+      .prepare(
+        `SELECT *
+         FROM sync_metadata
+         ORDER BY started_at DESC
+         LIMIT 10`
+      )
+      .all();
+
+    return c.json({
+      history: history.results || [],
+    });
+  } catch (error) {
+    console.error("History error:", error);
+    return c.json({ error: "Failed to get sync history" }, 500);
   }
 });
 
