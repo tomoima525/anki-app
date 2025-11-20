@@ -36,3 +36,29 @@ Uses real content from:
   - Source: https://raw.githubusercontent.com/sudheerj/javascript-interview-questions/master/README.md
 - **Back-End Developer Interview Questions** (questions only, no answers)
   - Source: https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md
+
+## test-deduplication.ts
+
+Tests the question deduplication logic that prevents duplicate questions when documents have a table of contents followed by detailed content.
+
+### Running the test
+
+```bash
+npx tsx scripts/test-deduplication.ts
+```
+
+### Test Coverage
+
+The test verifies:
+
+1. **Duplicate detection** - Identifies duplicate questions with variations in punctuation and spacing
+2. **Best answer selection** - Keeps the version with the longest/most complete answer
+3. **Normalization** - Properly normalizes question text for comparison
+
+### Test Scenario
+
+Simulates a common markdown structure where:
+- Table of contents lists questions at the top (with short/placeholder answers)
+- Same questions appear later in the document with full answers
+
+The deduplication logic ensures only one version of each question is kept (the one with the most complete answer).

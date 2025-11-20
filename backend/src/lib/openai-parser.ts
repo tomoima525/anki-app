@@ -130,7 +130,8 @@ export function parsePrewrittenQA(markdown: string): ParsedQuestion[] {
     }
   }
 
-  return questions;
+  // Deduplicate questions before returning
+  return deduplicateQuestions(questions);
 }
 
 /**
@@ -157,6 +158,44 @@ function cleanText(text: string): string {
   });
 
   return cleaned.trim();
+}
+
+/**
+ * Normalizes question text for comparison to detect duplicates
+ * Removes punctuation, extra whitespace, and converts to lowercase
+ */
+function normalizeQuestionForComparison(question: string): string {
+  return question
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "") // Remove punctuation
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .trim();
+}
+
+/**
+ * Deduplicates questions based on normalized question text
+ * When duplicates are found, keeps the one with the longest answer
+ */
+export function deduplicateQuestions(questions: ParsedQuestion[]): ParsedQuestion[] {
+  const questionMap = new Map<string, ParsedQuestion>();
+
+  for (const q of questions) {
+    const normalizedQuestion = normalizeQuestionForComparison(q.question);
+    const existing = questionMap.get(normalizedQuestion);
+
+    if (!existing) {
+      // First time seeing this question
+      questionMap.set(normalizedQuestion, q);
+    } else {
+      // Duplicate found - keep the one with the longer answer
+      if (q.answer.length > existing.answer.length) {
+        questionMap.set(normalizedQuestion, q);
+      }
+      // Otherwise keep the existing one (do nothing)
+    }
+  }
+
+  return Array.from(questionMap.values());
 }
 
 const PARSING_PROMPT = `You are a helpful assistant that extracts interview questions and answers from markdown documents.
@@ -250,10 +289,17 @@ export async function parseQuestionsInChunks(
   for (const chunk of chunks) {
     const questions = await parseQuestionsWithOpenAI(chunk, apiKey, model);
     allQuestions.push(...questions);
-    console.log(`Parsed ${questions.length} questions`);
+    console.log(`Parsed ${questions.length} questions from chunk`);
   }
 
-  return allQuestions;
+  // Deduplicate questions across all chunks
+  const deduplicated = deduplicateQuestions(allQuestions);
+  const duplicateCount = allQuestions.length - deduplicated.length;
+  if (duplicateCount > 0) {
+    console.log(`Removed ${duplicateCount} duplicate question(s)`);
+  }
+
+  return deduplicated;
 }
 
 function splitMarkdownIntoChunks(
