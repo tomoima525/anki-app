@@ -1,6 +1,10 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { fetchMarkdownFromGitHub } from "../src/lib/github";
-import { parseQuestionsInChunks } from "../src/lib/openai-parser";
+import {
+  parseQuestionsInChunks,
+  hasPrewrittenAnswers,
+  parsePrewrittenQA,
+} from "../src/lib/openai-parser";
 import { batchUpsertQuestions, type UpsertResult } from "../src/lib/questions";
 import { getAllSources } from "../src/config/sources";
 
@@ -63,10 +67,22 @@ export default {
         );
         console.log(`  ✓ Fetched ${content.length} characters`);
 
-        // 2. Parse with OpenAI
-        console.log("  🤖 Parsing with OpenAI...");
-        const questions = await parseQuestionsInChunks(content, apiKey, model);
-        console.log(`  ✓ Parsed ${questions.length} questions`);
+        // 2. Check if document already contains answers
+        console.log("  🔍 Checking for pre-written answers...");
+        const hasAnswers = hasPrewrittenAnswers(content);
+        let questions;
+
+        if (hasAnswers) {
+          // 2a. Parse Q&A directly from markdown
+          console.log("  ✓ Pre-written answers detected, parsing directly...");
+          questions = parsePrewrittenQA(content);
+          console.log(`  ✓ Parsed ${questions.length} questions directly`);
+        } else {
+          // 2b. Parse with OpenAI
+          console.log("  🤖 No pre-written answers found, using OpenAI...");
+          questions = await parseQuestionsInChunks(content, apiKey, model);
+          console.log(`  ✓ Parsed ${questions.length} questions with OpenAI`);
+        }
 
         // 3. Upsert to database
         console.log("  💾 Upserting to database...");
