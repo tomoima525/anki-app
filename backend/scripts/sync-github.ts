@@ -2,7 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { fetchMarkdownFromGitHub } from "../src/lib/github";
 import {
   parseQuestionsInChunks,
-  hasPrewrittenAnswers,
+  hasPrewrittenAnswersWithAI,
   parsePrewrittenQA,
 } from "../src/lib/openai-parser";
 import { batchUpsertQuestions, type UpsertResult } from "../src/lib/questions";
@@ -67,9 +67,9 @@ export default {
         );
         console.log(`  ✓ Fetched ${content.length} characters`);
 
-        // 2. Check if document already contains answers
-        console.log("  🔍 Checking for pre-written answers...");
-        const hasAnswers = hasPrewrittenAnswers(content);
+        // 2. Check if document already contains answers using OpenAI
+        console.log("  🔍 Checking for pre-written answers with AI...");
+        const hasAnswers = await hasPrewrittenAnswersWithAI(content, apiKey, model);
         let questions;
 
         if (hasAnswers) {
@@ -79,7 +79,7 @@ export default {
           console.log(`  ✓ Parsed ${questions.length} questions directly`);
         } else {
           // 2b. Parse with OpenAI
-          console.log("  🤖 No pre-written answers found, using OpenAI...");
+          console.log("  🤖 No pre-written answers found, using OpenAI to extract...");
           questions = await parseQuestionsInChunks(content, apiKey, model);
           console.log(`  ✓ Parsed ${questions.length} questions with OpenAI`);
         }

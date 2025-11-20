@@ -7,7 +7,7 @@ export interface ParsedQuestion {
 
 /**
  * Detects if the markdown contains pre-written answers
- * by looking for common Q&A patterns
+ * by looking for common Q&A patterns (regex-based, fast)
  */
 export function hasPrewrittenAnswers(markdown: string): boolean {
   const answerPatterns = [
@@ -22,6 +22,54 @@ export function hasPrewrittenAnswers(markdown: string): boolean {
   const hasNumberedQA = /####?\s*\d+\.\s*.+\?\s*\n+.+/s.test(markdown);
 
   return answerPatterns.some((pattern) => pattern.test(markdown)) || hasNumberedQA;
+}
+
+/**
+ * Uses OpenAI to intelligently detect if the markdown contains pre-written answers
+ * More robust than regex patterns but incurs API cost
+ */
+export async function hasPrewrittenAnswersWithAI(
+  markdown: string,
+  apiKey: string,
+  model: string = "gpt-4o-mini"
+): Promise<boolean> {
+  const openai = new OpenAI({ apiKey });
+
+  // Take a sample of the markdown to reduce token usage
+  const sample = markdown.slice(0, 4000);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert at analyzing document structure. Respond with only 'yes' or 'no'.",
+        },
+        {
+          role: "user",
+          content: `Does this markdown document contain interview questions WITH their answers already written (not just a list of questions)?
+
+Respond with only:
+- "yes" if the document has questions AND answers
+- "no" if it only has questions without answers
+
+Document sample:
+${sample}`,
+        },
+      ],
+      temperature: 0,
+      max_tokens: 10,
+    });
+
+    const answer = response.choices[0]?.message?.content?.toLowerCase().trim();
+    return answer === "yes";
+  } catch (error) {
+    console.error("Error detecting answers with OpenAI:", error);
+    // Fallback to regex-based detection on error
+    return hasPrewrittenAnswers(markdown);
+  }
 }
 
 /**
