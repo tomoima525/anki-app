@@ -31,31 +31,72 @@ Before the deployment workflow can run, you need to configure the following GitH
    - Name: `CLOUDFLARE_API_TOKEN`, Value: `<your-cloudflare-api-token>`
    - Name: `CLOUDFLARE_ACCOUNT_ID`, Value: `<your-cloudflare-account-id>`
 
+### Deployment Environments
+
+The backend supports two deployment environments:
+
+1. **Development (dev)**
+   - Deployed automatically from `main` branch
+   - Uses `anki-interview-app-dev` worker
+   - Uses `anki-interview-db-dev` database
+   - For testing and development
+
+2. **Production (production)**
+   - Deployed automatically from `release-*` branches
+   - Uses `anki-interview-app-prod` worker
+   - Uses `anki-interview-db-prod` database
+   - For live production use
+
+### Creating a Production Release
+
+To deploy to production, create a release branch:
+
+```bash
+# Create a release branch from main
+git checkout main
+git pull origin main
+git checkout -b release-v1.0.0
+
+# Push the release branch
+git push -u origin release-v1.0.0
+```
+
+The deployment workflow will automatically detect the `release-*` branch and deploy to production.
+
 ### Deployment Triggers
 
 The backend deployment workflow runs automatically when:
 
-- **Push to main branch** with changes in:
-  - `backend/**` directory
-  - `.github/workflows/deploy-backend.yml`
+- **Push to main branch** → Deploys to **dev** environment
+  - Changes in `backend/**` directory
+  - Changes in `.github/workflows/deploy-backend.yml`
 
-You can also trigger it manually:
+- **Push to release-* branches** → Deploys to **production** environment
+  - Example: `release-v1.0`, `release-2024-11`
+  - Changes in `backend/**` directory
+  - Changes in `.github/workflows/deploy-backend.yml`
+
+**Manual deployment:**
 
 1. Go to **Actions** tab in GitHub
 2. Select **Deploy Backend to Cloudflare Workers**
 3. Click **Run workflow**
-4. Select the branch and click **Run workflow**
+4. Choose environment: `dev` or `production`
+5. Select the branch and click **Run workflow**
 
 ### Deployment Process
 
 The workflow performs the following steps:
 
-1. **Checkout code** - Fetches the latest code from the repository
-2. **Setup environment** - Installs Node.js 20 and pnpm
-3. **Install dependencies** - Runs `pnpm install` in the backend directory
-4. **Run database migrations** - Applies pending migrations to production D1 database
-5. **Deploy to Cloudflare Workers** - Deploys the backend using Wrangler
-6. **Generate summary** - Creates a deployment summary in the GitHub Actions UI
+1. **Determine environment** - Automatically selects dev/production based on branch
+2. **Checkout code** - Fetches the latest code from the repository
+3. **Setup environment** - Installs Node.js 20 and pnpm
+4. **Install dependencies** - Runs `pnpm install` in the backend directory
+5. **Check migration status** - Lists current migrations before applying
+6. **Run database migrations** - Applies pending migrations to the target environment
+7. **Verify migrations** - Confirms migrations were applied successfully
+8. **Deploy to Cloudflare Workers** - Deploys to the appropriate environment
+9. **Generate summary** - Creates a deployment summary with environment details
 
 ### Monitoring Deployments
 
@@ -131,7 +172,7 @@ This creates a new migration file with the next sequential number and a template
 2. Select **Database Migrations**
 3. Click **Run workflow**
 4. Choose:
-   - **Environment**: `production` or `local`
+   - **Environment**: `dev`, `production`, or `local`
    - **Dry run**: `true` to only check status, `false` to apply migrations
 5. Click **Run workflow**
 
@@ -143,12 +184,16 @@ cd backend
 # Local development database
 pnpm db:migrate
 
-# Production database
+# Dev environment database (remote)
+pnpm db:migrate:dev
+
+# Production database (remote)
 pnpm db:migrate:prod
 
 # Check migration status
-npx wrangler d1 migrations list anki-interview-db --local
-npx wrangler d1 migrations list anki-interview-db-prod --remote
+npx wrangler d1 migrations list anki-interview-db --local          # Local
+npx wrangler d1 migrations list anki-interview-db-dev --remote     # Dev
+npx wrangler d1 migrations list anki-interview-db-prod --remote    # Production
 ```
 
 ### Migration Workflow Features
@@ -236,11 +281,20 @@ Frontend deployment will be configured separately (to be added).
 If you prefer to deploy manually:
 
 ```bash
-# Deploy backend
 cd backend
 pnpm install
+
+# Deploy to dev environment
+pnpm db:migrate:dev   # Run dev migrations
+pnpm deploy:dev       # Deploy to dev workers
+
+# Deploy to production environment
 pnpm db:migrate:prod  # Run production migrations
-pnpm deploy           # Deploy to Cloudflare Workers
+pnpm deploy:prod      # Deploy to production workers
+
+# Or use wrangler directly
+wrangler deploy --env dev         # Deploy to dev
+wrangler deploy --env production  # Deploy to production
 ```
 
 ## Resources

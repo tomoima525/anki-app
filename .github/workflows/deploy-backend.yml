@@ -4,10 +4,20 @@ on:
   push:
     branches:
       - main
+      - 'release-*'
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - production
+        default: 'dev'
 
 jobs:
   deploy:
@@ -19,6 +29,33 @@ jobs:
         working-directory: ./backend
 
     steps:
+      - name: Determine deployment environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use input
+            ENV="${{ inputs.environment }}"
+          elif [[ "${{ github.ref }}" == refs/heads/release-* ]]; then
+            # Release branch - deploy to production
+            ENV="production"
+          else
+            # Main branch or other - deploy to dev
+            ENV="dev"
+          fi
+
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+
+          # Set database name based on environment
+          if [ "$ENV" = "production" ]; then
+            echo "db_name=anki-interview-db-prod" >> $GITHUB_OUTPUT
+            echo "db_label=Production" >> $GITHUB_OUTPUT
+          else
+            echo "db_name=anki-interview-db-dev" >> $GITHUB_OUTPUT
+            echo "db_label=Development" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Deploying to: $ENV"
+        working-directory: .
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -41,16 +78,16 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "📋 Checking current migration status..."
-          npx wrangler d1 migrations list anki-interview-db-prod --remote || echo "No migrations applied yet"
+          echo "📋 Checking current migration status for ${{ steps.env.outputs.db_label }}..."
+          npx wrangler d1 migrations list ${{ steps.env.outputs.db_name }} --remote || echo "No migrations applied yet"
 
       - name: Run database migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "🚀 Applying database migrations to production..."
-          pnpm db:migrate:prod
+          echo "🚀 Applying database migrations to ${{ steps.env.outputs.db_label }}..."
+          npx wrangler d1 migrations apply ${{ steps.env.outputs.db_name }} --remote
           echo "✅ Migrations applied successfully"
 
       - name: Verify migration status (after)
@@ -59,7 +96,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "✔️ Verifying migration status..."
-          npx wrangler d1 migrations list anki-interview-db-prod --remote
+          npx wrangler d1 migrations list ${{ steps.env.outputs.db_name }} --remote
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -67,7 +104,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: ./backend
-          command: deploy --env production
+          command: deploy --env ${{ steps.env.outputs.environment }}
 
       - name: Deployment summary
         env:
@@ -76,11 +113,12 @@ jobs:
         run: |
           echo "### ✅ Backend Deployment Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.env.outputs.db_label }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp:** $(date)" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Database Migrations" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          npx wrangler d1 migrations list anki-interview-db-prod --remote >> $GITHUB_STEP_SUMMARY 2>&1 || echo "No migrations" >> $GITHUB_STEP_SUMMARY
+          npx wrangler d1 migrations list ${{ steps.env.outputs.db_name }} --remote >> $GITHUB_STEP_SUMMARY 2>&1 || echo "No migrations" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
