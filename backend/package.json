@@ -10,6 +10,8 @@
     "db:migrate": "wrangler d1 migrations apply anki-interview-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply anki-interview-db-prod --remote",
     "db:seed": "wrangler d1 execute anki-interview-db --local --file=./db/seed.sql",
+    "db:export": "./scripts/export-to-csv.sh",
+    "db:import": "./scripts/import-from-csv.sh",
     "sync": "wrangler dev scripts/sync-github.ts --remote --test-scheduled",
     "sync:local": "wrangler dev --local scripts/sync-github.ts --test-scheduled",
     "test:parse": "wrangler dev --local scripts/test-parse.ts --test-scheduled",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "wrangler": "^4.0.0"
   }
