@@ -44,4 +44,7 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/extensions.json
 
+# Data exports
+data/*.csv
+
 
