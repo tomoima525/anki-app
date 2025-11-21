@@ -292,6 +292,43 @@ app.get("/api/questions/:id", async (c) => {
 });
 
 /**
+ * POST /api/question/:id/delete
+ * Delete question
+ */
+
+app.post("/api/question/:id/delete", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const db = c.env.DB;
+
+    const deleteFromQuestions = db
+      .prepare(
+        `DELETE FROM questions
+           WHERE id = ?`
+      )
+      .bind(id);
+    const deleteFromAnswerLogs = db
+      .prepare(`DELETE FROM answer_logs WHERE question_id = ?`)
+      .bind(id);
+
+    // Should remove answer logs first, then question
+    await deleteFromAnswerLogs.run();
+    await deleteFromQuestions.run();
+
+    return c.json(
+      {
+        success: true,
+        message: "Question deleted",
+      },
+      200
+    );
+  } catch (error) {
+    console.error("Delete failed ", error);
+    return c.json({ error: "Failed to delete question", success: false }, 500);
+  }
+});
+
+/**
  * GET /api/questions
  * List questions with filters, search, and sorting
  */
