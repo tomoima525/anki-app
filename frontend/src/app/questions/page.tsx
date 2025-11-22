@@ -32,6 +32,7 @@ export default function QuestionsPage() {
   const [stats, setStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Filters and search
   const [search, setSearch] = useState("");
@@ -123,18 +124,39 @@ export default function QuestionsPage() {
   };
 
   const handleRemove = async (id: string) => {
-    const response = await fetch(`${backendUrl}/api/question/${id}/delete`, {
-      credentials: "include",
-      method: "POST",
-    });
+    // Show confirmation dialog
+    if (!confirm("Are you sure you want to delete this question? This action cannot be undone.")) {
+      return;
+    }
 
-    if (response.ok) {
-      setQuestions((prev) => {
-        const filterResult = prev.filter((v) => v.id !== id);
-        return filterResult;
+    // Set loading state for this specific question
+    setDeletingId(id);
+    setError(null); // Clear any previous errors
+
+    try {
+      const response = await fetch(`${backendUrl}/api/questions/${id}`, {
+        credentials: "include",
+        method: "DELETE",
       });
-    } else {
-      console.log("===== error", await response.json());
+
+      if (response.ok) {
+        // Successfully deleted - update UI
+        setQuestions((prev) => prev.filter((v) => v.id !== id));
+        setPagination((prev) => ({ ...prev, total: prev.total - 1 }));
+
+        // Reload stats to reflect the deletion
+        loadStats();
+      } else {
+        // Handle error response
+        const errorData = await response.json();
+        const errorMessage = errorData.error || "Failed to delete question";
+        setError(errorMessage);
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      setError("Failed to delete question. Please try again.");
+    } finally {
+      setDeletingId(null); // Clear loading state
     }
   };
 
@@ -387,10 +409,11 @@ export default function QuestionsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-auto p-1 "
+                              className="h-auto p-1"
                               onClick={() => handleRemove(question.id)}
+                              disabled={deletingId === question.id}
                             >
-                              Remove
+                              {deletingId === question.id ? "Deleting..." : "Remove"}
                             </Button>
                           </div>
                         </td>
