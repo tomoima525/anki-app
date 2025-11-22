@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCredentials } from "@/lib/auth";
 import { createSession, getSessionCookieConfig } from "@/lib/session";
 
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
