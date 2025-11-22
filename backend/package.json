@@ -6,11 +6,10 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
     "deploy:dev": "wrangler deploy --env dev",
     "deploy:prod": "wrangler deploy --env production",
     "db:migrate": "wrangler d1 migrations apply anki-interview-db --local",
-    "db:migrate:dev": "wrangler d1 migrations apply anki-interview-db-dev --remote",
+    "db:migrate:dev": "wrangler d1 migrations apply anki-interview-db --remote",
     "db:migrate:prod": "wrangler d1 migrations apply anki-interview-db-prod --remote",
     "db:seed": "wrangler d1 execute anki-interview-db --local --file=./db/seed.sql",
     "db:export": "./scripts/export-to-csv.sh",

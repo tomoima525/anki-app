@@ -39,7 +39,7 @@ jobs:
             # Release branch - deploy to production
             ENV="production"
           else
-            # Main branch or other - deploy to dev
+            # Main branch - deploy to dev
             ENV="dev"
           fi
 
