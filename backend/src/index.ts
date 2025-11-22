@@ -5,6 +5,16 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import {
+  getDailyStats,
+  getActivityTrend,
+  getMasteryProgress,
+  getStudyStreak,
+  getReviewQueue,
+  getHeatmapData,
+  getAverages,
+  getYesterdayStats,
+} from "./lib/dashboard";
 
 export interface Env {
   DB: D1Database;
@@ -430,6 +440,185 @@ app.get("/api/questions", async (c) => {
   } catch (error) {
     console.error("Get questions error:", error);
     return c.json({ error: "Failed to get questions" }, 500);
+  }
+});
+
+// Dashboard endpoints
+
+/**
+ * GET /api/dashboard/daily-stats
+ * Get comprehensive daily statistics
+ */
+app.get("/api/dashboard/daily-stats", async (c) => {
+  try {
+    const db = c.env.DB;
+    const date = c.req.query("date"); // Optional ISO date string
+
+    const dailyStats = await getDailyStats(db, date);
+    const averages = await getAverages(db);
+    const yesterdayStats = await getYesterdayStats(db);
+
+    // Calculate estimated study time (rough estimate based on timestamps)
+    let estimatedStudyTimeMinutes = 0;
+    if (dailyStats.first_answer_at && dailyStats.last_answer_at) {
+      const firstTime = new Date(dailyStats.first_answer_at).getTime();
+      const lastTime = new Date(dailyStats.last_answer_at).getTime();
+      estimatedStudyTimeMinutes = Math.round((lastTime - firstTime) / (1000 * 60));
+    }
+
+    // Calculate comparisons
+    const vsDailyAvg =
+      averages.daily_avg > 0
+        ? Math.round(
+            ((dailyStats.total_answers - averages.daily_avg) / averages.daily_avg) * 100
+          )
+        : 0;
+    const vsYesterday = dailyStats.total_answers - yesterdayStats.total_answers;
+
+    return c.json({
+      date: date || new Date().toISOString().split("T")[0],
+      today: {
+        total_answers: dailyStats.total_answers,
+        unique_questions: dailyStats.unique_questions,
+        easy_count: dailyStats.easy_count,
+        medium_count: dailyStats.medium_count,
+        hard_count: dailyStats.hard_count,
+        first_answer_at: dailyStats.first_answer_at,
+        last_answer_at: dailyStats.last_answer_at,
+        estimated_study_time_minutes: estimatedStudyTimeMinutes,
+      },
+      averages: {
+        daily_avg: averages.daily_avg,
+        weekly_avg: averages.weekly_avg,
+      },
+      comparison: {
+        vs_daily_avg: vsDailyAvg >= 0 ? `+${vsDailyAvg}%` : `${vsDailyAvg}%`,
+        vs_yesterday: vsYesterday >= 0 ? `+${vsYesterday}` : `${vsYesterday}`,
+      },
+    });
+  } catch (error) {
+    console.error("Get daily stats error:", error);
+    return c.json({ error: "Failed to get daily statistics" }, 500);
+  }
+});
+
+/**
+ * GET /api/dashboard/activity-trend
+ * Get activity data for time-series visualization
+ */
+app.get("/api/dashboard/activity-trend", async (c) => {
+  try {
+    const db = c.env.DB;
+    const range = c.req.query("range") || "7d";
+
+    // Parse range to days
+    let days = 7;
+    if (range === "30d") days = 30;
+    else if (range === "90d") days = 90;
+
+    const data = await getActivityTrend(db, days);
+
+    return c.json({
+      range,
+      data,
+    });
+  } catch (error) {
+    console.error("Get activity trend error:", error);
+    return c.json({ error: "Failed to get activity trend" }, 500);
+  }
+});
+
+/**
+ * GET /api/dashboard/mastery-progress
+ * Get mastery categorization of all questions
+ */
+app.get("/api/dashboard/mastery-progress", async (c) => {
+  try {
+    const db = c.env.DB;
+    const progress = await getMasteryProgress(db);
+
+    return c.json(progress);
+  } catch (error) {
+    console.error("Get mastery progress error:", error);
+    return c.json({ error: "Failed to get mastery progress" }, 500);
+  }
+});
+
+/**
+ * GET /api/dashboard/study-streak
+ * Calculate current and historical study streaks
+ */
+app.get("/api/dashboard/study-streak", async (c) => {
+  try {
+    const db = c.env.DB;
+    const streak = await getStudyStreak(db);
+
+    return c.json(streak);
+  } catch (error) {
+    console.error("Get study streak error:", error);
+    return c.json({ error: "Failed to get study streak" }, 500);
+  }
+});
+
+/**
+ * GET /api/dashboard/review-queue
+ * Get questions that need review
+ */
+app.get("/api/dashboard/review-queue", async (c) => {
+  try {
+    const db = c.env.DB;
+    const limit = parseInt(c.req.query("limit") || "10", 10);
+    const daysThreshold = parseInt(c.req.query("days_threshold") || "7", 10);
+
+    const questions = await getReviewQueue(db, limit, daysThreshold);
+
+    // Get total count of questions needing review
+    const totalCountResult = await db
+      .prepare(
+        `SELECT COUNT(*) as count
+        FROM questions
+        WHERE answer_count > 0
+          AND (
+            last_difficulty = 'hard' OR
+            JULIANDAY('now') - JULIANDAY(last_answered_at) > ?
+          )`
+      )
+      .bind(daysThreshold)
+      .first<{ count: number }>();
+
+    return c.json({
+      questions,
+      total_count: totalCountResult?.count || 0,
+    });
+  } catch (error) {
+    console.error("Get review queue error:", error);
+    return c.json({ error: "Failed to get review queue" }, 500);
+  }
+});
+
+/**
+ * GET /api/dashboard/heatmap
+ * Get activity heatmap data
+ */
+app.get("/api/dashboard/heatmap", async (c) => {
+  try {
+    const db = c.env.DB;
+    const range = c.req.query("range") || "30d";
+
+    // Parse range to days
+    let days = 30;
+    if (range === "90d") days = 90;
+    else if (range === "1y") days = 365;
+
+    const data = await getHeatmapData(db, days);
+
+    return c.json({
+      range,
+      data,
+    });
+  } catch (error) {
+    console.error("Get heatmap data error:", error);
+    return c.json({ error: "Failed to get heatmap data" }, 500);
   }
 });
 
