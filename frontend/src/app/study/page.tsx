@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface QuestionData {
   id: string;
@@ -10,7 +10,7 @@ interface QuestionData {
   source: string;
 }
 
-type Difficulty = 'easy' | 'medium' | 'hard';
+type Difficulty = "easy" | "medium" | "hard";
 
 export default function StudyPage() {
   const router = useRouter();
@@ -30,21 +30,21 @@ export default function StudyPage() {
       if (loading) return;
 
       // Space or Enter to show answer
-      if (!showAnswer && (e.key === ' ' || e.key === 'Enter')) {
+      if (!showAnswer && (e.key === " " || e.key === "Enter")) {
         e.preventDefault();
         handleShowAnswer();
       }
 
       // Number keys for difficulty
       if (showAnswer) {
-        if (e.key === '1') handleDifficulty('easy');
-        if (e.key === '2') handleDifficulty('medium');
-        if (e.key === '3') handleDifficulty('hard');
+        if (e.key === "1") handleDifficulty("easy");
+        if (e.key === "2") handleDifficulty("medium");
+        if (e.key === "3") handleDifficulty("hard");
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [showAnswer, loading, question]);
 
   const loadNextQuestion = async () => {
@@ -54,26 +54,26 @@ export default function StudyPage() {
 
     try {
       // Call backend API (configure BACKEND_URL in .env)
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
       const response = await fetch(`${backendUrl}/api/study/next`, {
-        method: 'POST',
-        credentials: 'include', // Send cookies for auth
+        method: "POST",
+        credentials: "include", // Send cookies for auth
       });
 
       if (!response.ok) {
         if (response.status === 404) {
-          setError('No questions available. Please sync questions first.');
+          setError("No questions available. Please sync questions first.");
           return;
         }
-        throw new Error('Failed to load question');
+        throw new Error("Failed to load question");
       }
 
       const data = await response.json();
       setQuestion(data);
-
     } catch (err) {
-      setError('Failed to load question. Please try again.');
-      console.error('Load question error:', err);
+      setError("Failed to load question. Please try again.");
+      console.error("Load question error:", err);
     } finally {
       setLoading(false);
     }
@@ -83,22 +83,22 @@ export default function StudyPage() {
     if (!question) return;
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
       const response = await fetch(`${backendUrl}/api/study/${question.id}`, {
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load answer');
+        throw new Error("Failed to load answer");
       }
 
       const data = await response.json();
       setQuestion(data);
       setShowAnswer(true);
-
     } catch (err) {
-      setError('Failed to load answer. Please try again.');
-      console.error('Load answer error:', err);
+      setError("Failed to load answer. Please try again.");
+      console.error("Load answer error:", err);
     }
   };
 
@@ -108,24 +108,27 @@ export default function StudyPage() {
     setLoading(true);
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
-      const response = await fetch(`${backendUrl}/api/study/${question.id}/answer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ difficulty }),
-      });
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
+      const response = await fetch(
+        `${backendUrl}/api/study/${question.id}/answer`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ difficulty }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to submit answer');
+        throw new Error("Failed to submit answer");
       }
 
       // Load next question
       await loadNextQuestion();
-
     } catch (err) {
-      setError('Failed to submit answer. Please try again.');
-      console.error('Submit answer error:', err);
+      setError("Failed to submit answer. Please try again.");
+      console.error("Submit answer error:", err);
       setLoading(false);
     }
   };
@@ -137,12 +140,6 @@ export default function StudyPage() {
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error}
           </div>
-          <button
-            onClick={() => router.push('/settings')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Go to Settings
-          </button>
         </div>
       </div>
     );
@@ -157,9 +154,6 @@ export default function StudyPage() {
           <nav className="space-x-4">
             <a href="/questions" className="text-blue-600 hover:text-blue-800">
               All Questions
-            </a>
-            <a href="/settings" className="text-blue-600 hover:text-blue-800">
-              Settings
             </a>
           </nav>
         </div>
@@ -189,7 +183,7 @@ export default function StudyPage() {
           <div className="bg-white rounded-lg shadow-lg p-8">
             {/* Source */}
             <div className="text-sm text-gray-500 mb-4">
-              Source: {question.source.split('/').pop()}
+              Source: {question.source.split("/").pop()}
             </div>
 
             {/* Question */}
@@ -231,21 +225,21 @@ export default function StudyPage() {
                   </p>
                   <div className="flex gap-4 justify-center">
                     <button
-                      onClick={() => handleDifficulty('easy')}
+                      onClick={() => handleDifficulty("easy")}
                       disabled={loading}
                       className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
                       Easy
                     </button>
                     <button
-                      onClick={() => handleDifficulty('medium')}
+                      onClick={() => handleDifficulty("medium")}
                       disabled={loading}
                       className="px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
                       Medium
                     </button>
                     <button
-                      onClick={() => handleDifficulty('hard')}
+                      onClick={() => handleDifficulty("hard")}
                       disabled={loading}
                       className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
