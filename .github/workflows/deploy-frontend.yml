@@ -1,0 +1,99 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+      - "release-*"
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: choice
+        options:
+          - dev
+          - production
+        default: "dev"
+
+jobs:
+  deploy:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Determine deployment environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use input
+            ENV="${{ inputs.environment }}"
+          elif [[ "${{ github.ref }}" == refs/heads/release-* ]]; then
+            # Release branch - deploy to production
+            ENV="production"
+          else
+            # Main branch or other - deploy to dev
+            ENV="dev"
+          fi
+
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+
+          # Set project name based on environment
+          if [ "$ENV" = "production" ]; then
+            echo "project_name=anki-interview-app-prod" >> $GITHUB_OUTPUT
+            echo "env_label=Production" >> $GITHUB_OUTPUT
+          else
+            echo "project_name=anki-interview-app" >> $GITHUB_OUTPUT
+            echo "env_label=Development" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Deploying to: $ENV"
+        working-directory: .
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Next.js for Cloudflare Pages
+        run: |
+          echo "🏗️ Building Next.js application for Cloudflare Pages..."
+          pnpm run pages:build
+          echo "✅ Build completed successfully"
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: ./frontend
+          command: pages deploy .vercel/output/static --project-name=${{ steps.env.outputs.project_name }}
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Frontend Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.env.outputs.env_label }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Project:** ${{ steps.env.outputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
