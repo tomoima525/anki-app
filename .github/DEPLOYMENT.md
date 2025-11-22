@@ -37,8 +37,8 @@ The backend supports two deployment environments:
 
 1. **Development (dev)**
    - Deployed automatically from `main` branch
-   - Uses `anki-interview-app-dev` worker
-   - Uses `anki-interview-db-dev` database
+   - Uses `anki-interview-app` worker
+   - Uses `anki-interview-db` database
    - For testing and development
 
 2. **Production (production)**
@@ -71,7 +71,7 @@ The backend deployment workflow runs automatically when:
   - Changes in `backend/**` directory
   - Changes in `.github/workflows/deploy-backend.yml`
 
-- **Push to release-* branches** → Deploys to **production** environment
+- **Push to release-\* branches** → Deploys to **production** environment
   - Example: `release-v1.0`, `release-2024-11`
   - Changes in `backend/**` directory
   - Changes in `.github/workflows/deploy-backend.yml`
@@ -107,14 +107,17 @@ The workflow performs the following steps:
 ### Troubleshooting
 
 **Deployment fails with authentication error:**
+
 - Verify `CLOUDFLARE_API_TOKEN` is valid and has correct permissions
 - Ensure `CLOUDFLARE_ACCOUNT_ID` matches your Cloudflare account
 
 **Database migration fails:**
+
 - Check that the D1 database exists in Cloudflare
 - Verify the database ID in `backend/wrangler.toml` matches production database
 
 **Deployment succeeds but application doesn't work:**
+
 - Check Cloudflare Workers logs in the dashboard
 - Verify environment variables are set in Cloudflare (not in GitHub Actions)
 - Ensure D1 database bindings are correctly configured
@@ -141,6 +144,7 @@ The application uses Cloudflare D1 (SQLite) for data storage. Database schema ch
 ### Migration Files
 
 Migration files are located in `backend/db/migrations/` and follow this naming convention:
+
 ```
 0001_initial_schema.sql
 0002_add_user_preferences.sql
@@ -164,10 +168,12 @@ This creates a new migration file with the next sequential number and a template
 ### Running Migrations
 
 **Automatically (via GitHub Actions):**
+
 - Migrations run automatically during backend deployment
 - The deployment workflow checks migration status before and after applying
 
 **Manually (via GitHub Actions):**
+
 1. Go to **Actions** tab in GitHub
 2. Select **Database Migrations**
 3. Click **Run workflow**
@@ -192,7 +198,7 @@ pnpm db:migrate:prod
 
 # Check migration status
 npx wrangler d1 migrations list anki-interview-db --local          # Local
-npx wrangler d1 migrations list anki-interview-db-dev --remote     # Dev
+npx wrangler d1 migrations list anki-interview-db --remote         # Dev
 npx wrangler d1 migrations list anki-interview-db-prod --remote    # Production
 ```
 
@@ -209,6 +215,7 @@ The standalone migration workflow provides:
 ### Migration Best Practices
 
 1. **Always use IF NOT EXISTS**
+
    ```sql
    CREATE TABLE IF NOT EXISTS users (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,17 +224,20 @@ The standalone migration workflow provides:
    ```
 
 2. **Add descriptive comments**
+
    ```sql
    -- Add email column for user notifications
    ALTER TABLE users ADD COLUMN email TEXT;
    ```
 
 3. **Create indexes for performance**
+
    ```sql
    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
    ```
 
 4. **Test locally first**
+
    ```bash
    pnpm db:migrate  # Test on local database
    # Verify the changes work correctly
@@ -255,17 +265,20 @@ During deployment, the workflow provides:
 ### Troubleshooting Migrations
 
 **Migration fails during deployment:**
+
 1. Check the Actions logs for specific SQL errors
 2. Verify the migration SQL syntax is valid
 3. Test the migration locally first: `pnpm db:migrate`
 4. Check if the migration already exists in production
 
 **Migration applied but changes not reflected:**
+
 1. Verify you're checking the correct database (local vs production)
 2. Run `npx wrangler d1 migrations list <database-name> --remote`
 3. Check Cloudflare Dashboard → D1 → View your database
 
 **Need to rollback a migration:**
+
 - D1 doesn't support automatic rollbacks
 - Create a new migration that reverses the changes
 - Example: If you added a column, create a migration to drop it

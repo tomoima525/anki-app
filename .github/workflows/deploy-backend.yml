@@ -4,20 +4,20 @@ on:
   push:
     branches:
       - main
-      - 'release-*'
+      - "release-*"
     paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
         type: choice
         options:
           - dev
           - production
-        default: 'dev'
+        default: "dev"
 
 jobs:
   deploy:
@@ -50,7 +50,7 @@ jobs:
             echo "db_name=anki-interview-db-prod" >> $GITHUB_OUTPUT
             echo "db_label=Production" >> $GITHUB_OUTPUT
           else
-            echo "db_name=anki-interview-db-dev" >> $GITHUB_OUTPUT
+            echo "db_name=anki-interview-db" >> $GITHUB_OUTPUT
             echo "db_label=Development" >> $GITHUB_OUTPUT
           fi
 
@@ -67,8 +67,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to run migrations on'
+        description: "Environment to run migrations on"
         required: true
         type: choice
         options:
           - dev
           - production
           - local
-        default: 'dev'
+        default: "dev"
       dry_run:
-        description: 'Dry run - only check migration status without applying'
+        description: "Dry run - only check migration status without applying"
         required: false
         type: boolean
         default: false
@@ -39,8 +39,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -59,7 +59,7 @@ jobs:
           if [ "${{ inputs.environment }}" = "production" ]; then
             npx wrangler d1 migrations list anki-interview-db-prod --remote || echo "⚠️ No migrations applied yet"
           elif [ "${{ inputs.environment }}" = "dev" ]; then
-            npx wrangler d1 migrations list anki-interview-db-dev --remote || echo "⚠️ No migrations applied yet"
+            npx wrangler d1 migrations list anki-interview-db --remote || echo "⚠️ No migrations applied yet"
           else
             npx wrangler d1 migrations list anki-interview-db --local || echo "⚠️ No migrations applied yet"
           fi
@@ -89,7 +89,7 @@ jobs:
           if [ "${{ inputs.environment }}" = "production" ]; then
             npx wrangler d1 migrations list anki-interview-db-prod --remote
           elif [ "${{ inputs.environment }}" = "dev" ]; then
-            npx wrangler d1 migrations list anki-interview-db-dev --remote
+            npx wrangler d1 migrations list anki-interview-db --remote
           else
             npx wrangler d1 migrations list anki-interview-db --local
           fi
@@ -114,7 +114,7 @@ jobs:
           if [ "${{ inputs.environment }}" = "production" ]; then
             npx wrangler d1 migrations list anki-interview-db-prod --remote >> $GITHUB_STEP_SUMMARY 2>&1 || echo "No migrations" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ inputs.environment }}" = "dev" ]; then
-            npx wrangler d1 migrations list anki-interview-db-dev --remote >> $GITHUB_STEP_SUMMARY 2>&1 || echo "No migrations" >> $GITHUB_STEP_SUMMARY
+            npx wrangler d1 migrations list anki-interview-db --remote >> $GITHUB_STEP_SUMMARY 2>&1 || echo "No migrations" >> $GITHUB_STEP_SUMMARY
           else
             npx wrangler d1 migrations list anki-interview-db --local >> $GITHUB_STEP_SUMMARY 2>&1 || echo "No migrations" >> $GITHUB_STEP_SUMMARY
           fi
