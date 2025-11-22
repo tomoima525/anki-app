@@ -292,6 +292,55 @@ app.get("/api/questions/:id", async (c) => {
 });
 
 /**
+ * DELETE /api/questions/:id
+ * Delete a question and its associated answer logs
+ */
+app.delete("/api/questions/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const db = c.env.DB;
+
+    // First check if the question exists
+    const question = await db
+      .prepare(`SELECT id FROM questions WHERE id = ?`)
+      .bind(id)
+      .first();
+
+    if (!question) {
+      return c.json({ error: "Question not found", success: false }, 404);
+    }
+
+    // Delete answer logs first, then question (order matters due to foreign key constraints)
+    const deleteFromAnswerLogs = db
+      .prepare(`DELETE FROM answer_logs WHERE question_id = ?`)
+      .bind(id);
+    const deleteFromQuestions = db
+      .prepare(`DELETE FROM questions WHERE id = ?`)
+      .bind(id);
+
+    // Use batch for atomic deletion - both succeed or both fail
+    const results = await db.batch([deleteFromAnswerLogs, deleteFromQuestions]);
+
+    // Verify deletion succeeded
+    const questionDeleteResult = results[1];
+    if (questionDeleteResult.meta.changes === 0) {
+      return c.json({ error: "Failed to delete question", success: false }, 500);
+    }
+
+    return c.json(
+      {
+        success: true,
+        message: "Question deleted successfully",
+      },
+      200
+    );
+  } catch (error) {
+    console.error("Delete failed:", error);
+    return c.json({ error: "Failed to delete question", success: false }, 500);
+  }
+});
+
+/**
  * GET /api/questions
  * List questions with filters, search, and sorting
  */

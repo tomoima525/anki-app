@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Question } from '@/types/database';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from "react";
+import { Question } from "@/types/database";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface QuestionStats {
   totalQuestions: number;
@@ -32,11 +32,12 @@ export default function QuestionsPage() {
   const [stats, setStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Filters and search
-  const [search, setSearch] = useState('');
-  const [difficulty, setDifficulty] = useState<string>('');
-  const [sort, setSort] = useState<string>('recent');
+  const [search, setSearch] = useState("");
+  const [difficulty, setDifficulty] = useState<string>("");
+  const [sort, setSort] = useState<string>("recent");
   const [pagination, setPagination] = useState<PaginationInfo>({
     total: 0,
     limit: 50,
@@ -44,7 +45,8 @@ export default function QuestionsPage() {
     hasMore: false,
   });
 
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
   // Load stats on mount
   useEffect(() => {
@@ -59,17 +61,17 @@ export default function QuestionsPage() {
   const loadStats = async () => {
     try {
       const response = await fetch(`${backendUrl}/api/questions/stats`, {
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load stats');
+        throw new Error("Failed to load stats");
       }
 
       const data = await response.json();
       setStats(data);
     } catch (err) {
-      console.error('Load stats error:', err);
+      console.error("Load stats error:", err);
     }
   };
 
@@ -83,24 +85,24 @@ export default function QuestionsPage() {
         offset: pagination.offset.toString(),
       });
 
-      if (search) params.set('search', search);
-      if (difficulty) params.set('difficulty', difficulty);
-      if (sort) params.set('sort', sort);
+      if (search) params.set("search", search);
+      if (difficulty) params.set("difficulty", difficulty);
+      if (sort) params.set("sort", sort);
 
       const response = await fetch(`${backendUrl}/api/questions?${params}`, {
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load questions');
+        throw new Error("Failed to load questions");
       }
 
       const data = await response.json();
       setQuestions(data.questions);
       setPagination(data.pagination);
     } catch (err) {
-      setError('Failed to load questions. Please try again.');
-      console.error('Load questions error:', err);
+      setError("Failed to load questions. Please try again.");
+      console.error("Load questions error:", err);
     } finally {
       setLoading(false);
     }
@@ -121,9 +123,49 @@ export default function QuestionsPage() {
     setPagination({ ...pagination, offset: 0 });
   };
 
+  const handleRemove = async (id: string) => {
+    // Show confirmation dialog
+    if (!confirm("Are you sure you want to delete this question? This action cannot be undone.")) {
+      return;
+    }
+
+    // Set loading state for this specific question
+    setDeletingId(id);
+    setError(null); // Clear any previous errors
+
+    try {
+      const response = await fetch(`${backendUrl}/api/questions/${id}`, {
+        credentials: "include",
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Successfully deleted - update UI
+        setQuestions((prev) => prev.filter((v) => v.id !== id));
+        setPagination((prev) => ({ ...prev, total: prev.total - 1 }));
+
+        // Reload stats to reflect the deletion
+        loadStats();
+      } else {
+        // Handle error response
+        const errorData = await response.json();
+        const errorMessage = errorData.error || "Failed to delete question";
+        setError(errorMessage);
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      setError("Failed to delete question. Please try again.");
+    } finally {
+      setDeletingId(null); // Clear loading state
+    }
+  };
+
   const handleNextPage = () => {
     if (pagination.hasMore) {
-      setPagination({ ...pagination, offset: pagination.offset + pagination.limit });
+      setPagination({
+        ...pagination,
+        offset: pagination.offset + pagination.limit,
+      });
     }
   };
 
@@ -137,24 +179,26 @@ export default function QuestionsPage() {
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
+    if (!dateString) return "Never";
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
-  const getDifficultyVariant = (difficulty: string | null): "default" | "secondary" | "destructive" | "outline" => {
+  const getDifficultyVariant = (
+    difficulty: string | null
+  ): "default" | "secondary" | "destructive" | "outline" => {
     switch (difficulty) {
-      case 'easy':
-      case 'medium':
-        return 'secondary';
-      case 'hard':
-        return 'destructive';
+      case "easy":
+      case "medium":
+        return "secondary";
+      case "hard":
+        return "destructive";
       default:
-        return 'outline';
+        return "outline";
     }
   };
 
@@ -180,8 +224,12 @@ export default function QuestionsPage() {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground">Total Questions</div>
-                  <div className="text-2xl font-bold">{stats.totalQuestions}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Total Questions
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {stats.totalQuestions}
+                  </div>
                 </CardContent>
               </Card>
               <Card>
@@ -324,12 +372,16 @@ export default function QuestionsPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-500">
-                            {question.source.split('/').pop()}
+                            {question.source.split("/").pop()}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <Badge variant={getDifficultyVariant(question.last_difficulty)}>
-                            {question.last_difficulty || 'N/A'}
+                          <Badge
+                            variant={getDifficultyVariant(
+                              question.last_difficulty
+                            )}
+                          >
+                            {question.last_difficulty || "N/A"}
                           </Badge>
                         </td>
                         <td className="px-6 py-4">
@@ -343,11 +395,27 @@ export default function QuestionsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <Button asChild variant="link" size="sm" className="h-auto p-0">
-                            <a href={`/questions/${question.id}`}>
-                              View Details
-                            </a>
-                          </Button>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              asChild
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0"
+                            >
+                              <a href={`/questions/${question.id}`}>
+                                View Details
+                              </a>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-auto p-1"
+                              onClick={() => handleRemove(question.id)}
+                              disabled={deletingId === question.id}
+                            >
+                              {deletingId === question.id ? "Deleting..." : "Remove"}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -358,9 +426,12 @@ export default function QuestionsPage() {
               {/* Pagination */}
               <div className="px-6 py-4 border-t border-border flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
-                  Showing {pagination.offset + 1} to{' '}
-                  {Math.min(pagination.offset + pagination.limit, pagination.total)} of{' '}
-                  {pagination.total} questions
+                  Showing {pagination.offset + 1} to{" "}
+                  {Math.min(
+                    pagination.offset + pagination.limit,
+                    pagination.total
+                  )}{" "}
+                  of {pagination.total} questions
                 </div>
                 <div className="flex gap-2">
                   <Button
