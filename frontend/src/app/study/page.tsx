@@ -152,6 +152,9 @@ export default function StudyPage() {
         <div className="mb-8 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Study Session</h1>
           <nav className="space-x-4">
+            <a href="/dashboard" className="text-blue-600 hover:text-blue-800">
+              Dashboard
+            </a>
             <a href="/questions" className="text-blue-600 hover:text-blue-800">
               All Questions
             </a>
