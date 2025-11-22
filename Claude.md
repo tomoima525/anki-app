@@ -250,3 +250,7 @@ Detailed specifications are in the `specs/` directory:
 
 - Run `pnpm lint` to check for linting errors
 - Run `pnpm format` to format the code
+
+## Specs
+
+- Always add a spec file under `specs/` when adding a new feature.
