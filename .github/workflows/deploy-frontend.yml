@@ -50,7 +50,7 @@ jobs:
             echo "project_name=anki-interview-app-prod" >> $GITHUB_OUTPUT
             echo "env_label=Production" >> $GITHUB_OUTPUT
           else
-            echo "project_name=anki-interview-app-dev" >> $GITHUB_OUTPUT
+            echo "project_name=anki-interview-app" >> $GITHUB_OUTPUT
             echo "env_label=Development" >> $GITHUB_OUTPUT
           fi
 
@@ -63,7 +63,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
