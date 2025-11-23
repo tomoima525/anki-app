@@ -1,11 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { fetchMarkdownFromGitHub } from "../src/lib/github";
-import {
-  parseQuestionsInChunks,
-  hasPrewrittenAnswersWithAI,
-  parsePrewrittenQA,
-} from "../src/lib/openai-parser";
-import { batchUpsertQuestions, type UpsertResult } from "../src/lib/questions";
+import { processUrlToQuestions } from "../src/lib/content-processor";
 import { getAllSources } from "../src/config/sources";
 
 interface Env {
@@ -15,128 +9,88 @@ interface Env {
   GITHUB_TOKEN?: string;
 }
 
-type SyncResult =
-  | ({ source: string } & UpsertResult)
-  | { source: string; error: string };
-
-function isSuccessResult(
-  result: SyncResult
-): result is { source: string } & UpsertResult {
-  return !("error" in result);
-}
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const db = env.DB;
-    const githubToken = env.GITHUB_TOKEN;
     const apiKey = env.OPENAI_API_KEY;
     const model = env.OPENAI_MODEL || "gpt-4o-mini";
+    const githubToken = env.GITHUB_TOKEN;
 
     if (!apiKey) {
-      console.error("Error: OPENAI_API_KEY is not set");
       return new Response("Error: OPENAI_API_KEY is not set", { status: 500 });
     }
 
-    if (!githubToken) {
-      console.error("Error: GITHUB_TOKEN is not set");
-      return new Response("Error: GITHUB_TOKEN is not set", { status: 500 });
-    }
-
-    // Get all configured sources
     const sources = getAllSources();
 
     if (sources.length === 0) {
-      console.error("Error: No sources configured");
       return new Response("Error: No sources configured", { status: 400 });
     }
 
     console.log(`Starting sync for ${sources.length} source(s)...\n`);
 
-    const results: SyncResult[] = [];
+    const results = [];
 
     for (const source of sources) {
       console.log(`Processing: ${source.name}`);
       console.log(`URL: ${source.url}`);
 
-      try {
-        // 1. Fetch markdown
-        console.log("  📥 Fetching markdown...");
-        const { content } = await fetchMarkdownFromGitHub(
-          source.url,
-          githubToken
-        );
-        console.log(`  ✓ Fetched ${content.length} characters`);
+      const result = await processUrlToQuestions(db, source.url, {
+        openaiApiKey: apiKey,
+        openaiModel: model,
+        githubToken,
+        maxConcurrentChunks: 3,
+      });
 
-        // 2. Check if document already contains answers using OpenAI
-        console.log("  🔍 Checking for pre-written answers with AI...");
-        const hasAnswers = await hasPrewrittenAnswersWithAI(content, apiKey, model);
-        let questions;
-
-        if (hasAnswers) {
-          // 2a. Parse Q&A directly from markdown
-          console.log("  ✓ Pre-written answers detected, parsing directly...");
-          questions = parsePrewrittenQA(content);
-          console.log(`  ✓ Parsed ${questions.length} questions directly`);
-        } else {
-          // 2b. Parse with OpenAI
-          console.log("  🤖 No pre-written answers found, using OpenAI to extract...");
-          questions = await parseQuestionsInChunks(content, apiKey, model);
-          console.log(`  ✓ Parsed ${questions.length} questions with OpenAI`);
-        }
-
-        // 3. Upsert to database
-        console.log("  💾 Upserting to database...");
-        const upsertResult = await batchUpsertQuestions(
-          db,
-          questions,
-          source.url
-        );
-        console.log(
-          `  ✓ Inserted: ${upsertResult.inserted}, Updated: ${upsertResult.updated}, Skipped: ${upsertResult.skipped}`
-        );
-
-        results.push({
-          source: source.name,
-          ...upsertResult,
-        });
-      } catch (error) {
-        console.error(`  ✗ Failed to sync source ${source.name}:`, error);
-        results.push({
-          source: source.name,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
+      if (result.success) {
+        console.log(`  ✅ Success: ${result.questionsExtracted} questions`);
+        console.log(`  Strategy: ${result.strategy}`);
+        console.log(`  Word count: ${result.wordCount}`);
+      } else {
+        console.log(`  ❌ Failed: ${result.error}`);
       }
+
+      results.push({
+        source: source.name,
+        ...result,
+      });
 
       console.log("");
     }
 
-    // Calculate totals
     const totals = results.reduce(
       (acc, r) => {
-        if (isSuccessResult(r)) {
-          acc.inserted += r.inserted || 0;
-          acc.updated += r.updated || 0;
-          acc.total += r.total || 0;
+        if (r.success) {
+          acc.total += r.questionsExtracted || 0;
+          acc.inserted += r.upsertResult?.inserted || 0;
+          acc.updated += r.upsertResult?.updated || 0;
+        } else {
+          acc.failed++;
         }
         return acc;
       },
-      { inserted: 0, updated: 0, total: 0 }
+      { total: 0, inserted: 0, updated: 0, failed: 0 }
     );
 
     console.log("=== Sync Complete ===");
-    console.log(`Total questions: ${totals.total}`);
+    console.log(`Total questions extracted: ${totals.total}`);
     console.log(`Inserted: ${totals.inserted}`);
     console.log(`Updated: ${totals.updated}`);
+    console.log(`Failed sources: ${totals.failed}`);
 
-    const response = {
-      success: true,
-      results,
-      totals,
-      timestamp: new Date().toISOString(),
-    };
-
-    return new Response(JSON.stringify(response, null, 2), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify(
+        {
+          success: true,
+          results,
+          totals,
+          timestamp: new Date().toISOString(),
+        },
+        null,
+        2
+      ),
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   },
 };
