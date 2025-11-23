@@ -1,0 +1,9 @@
+# Cloudflare Pages configuration for Next.js
+# This file configures compatibility flags and settings for Cloudflare Pages deployment
+
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Pages configuration
+pages_build_output_dir = ".vercel/output/static"
+
