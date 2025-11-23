@@ -8,7 +8,7 @@
     "dev:backend": "pnpm --filter anki-interview-backend dev",
     "dev:frontend": "pnpm --filter anki-interview-app dev",
     "build": "pnpm -r build",
-    "build:frontend": "pnpm --filter frontend build",
+    "build:frontend": "pnpm --filter anki-interview-app build",
     "build:backend": "pnpm --filter anki-interview-backend deploy",
     "install:all": "pnpm install",
     "lint": "eslint .",

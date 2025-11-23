@@ -109,11 +109,11 @@ Default credentials (development):
 
 ## Deployment
 
-Deploy to Cloudflare Pages:
+Deploy to Cloudflare Pages for dev:
 
 ```bash
 pnpm pages:build
-wrangler pages deploy
+npx wrangler pages deploy .vercel/output/static --project-name=anki-interview-app
 ```
 
 Set environment variables in Cloudflare dashboard:
