@@ -103,7 +103,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: ./frontend
           command: |
-            pages deploy .vercel/output/static --project-name=${{ steps.env.outputs.project_name }} ${{ steps.env.outputs.branch_flag }} --commit-hash=${{ github.sha }} --commit-message="${{ github.event.head_commit.message || 'Deployment' }}" --compatibility-flags=nodejs_compat
+            pages deploy .vercel/output/static --project-name=${{ steps.env.outputs.project_name }} ${{ steps.env.outputs.branch_flag }} --commit-hash=${{ github.sha }} --commit-message="${{ github.event.head_commit.message || 'Deployment' }}"
 
       - name: Deployment summary
         run: |
