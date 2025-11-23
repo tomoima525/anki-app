@@ -3,8 +3,7 @@ name: Deploy Frontend to Cloudflare Pages
 on:
   push:
     branches:
-      - main
-      - "release-*"
+      - "**" # Trigger on all branches for preview deployments
     paths:
       - "frontend/**"
       - ".github/workflows/deploy-frontend.yml"
@@ -38,9 +37,12 @@ jobs:
           elif [[ "${{ github.ref }}" == refs/heads/release-* ]]; then
             # Release branch - deploy to production
             ENV="production"
-          else
-            # Main branch or other - deploy to dev
+          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
+            # Main branch - deploy to dev (production project)
             ENV="dev"
+          else
+            # Other branches - deploy as preview
+            ENV="preview"
           fi
 
           echo "environment=$ENV" >> $GITHUB_OUTPUT
@@ -49,9 +51,23 @@ jobs:
           if [ "$ENV" = "production" ]; then
             echo "project_name=anki-interview-app-prod" >> $GITHUB_OUTPUT
             echo "env_label=Production" >> $GITHUB_OUTPUT
+            echo "deploy_type=production" >> $GITHUB_OUTPUT
+            echo "branch_flag=" >> $GITHUB_OUTPUT
+          elif [ "$ENV" = "preview" ]; then
+            # Preview deployments use dev project with branch flag
+            echo "project_name=anki-interview-app" >> $GITHUB_OUTPUT
+            echo "env_label=Preview (${{ github.ref_name }})" >> $GITHUB_OUTPUT
+            echo "deploy_type=preview" >> $GITHUB_OUTPUT
+            # Sanitize branch name for URL (lowercase, replace / with -)
+            BRANCH_NAME=$(echo "${{ github.ref_name }}" | tr '[:upper:]' '[:lower:]' | sed 's/\//-/g')
+            echo "branch_flag=--branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           else
+            # Dev environment (main branch)
             echo "project_name=anki-interview-app" >> $GITHUB_OUTPUT
             echo "env_label=Development" >> $GITHUB_OUTPUT
+            echo "deploy_type=production" >> $GITHUB_OUTPUT
+            echo "branch_flag=" >> $GITHUB_OUTPUT
           fi
 
           echo "Deploying to: $ENV"
@@ -86,14 +102,30 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: ./frontend
-          command: pages deploy .vercel/output/static --project-name=${{ steps.env.outputs.project_name }}
+          command: |
+            pages deploy .vercel/output/static \
+              --project-name=${{ steps.env.outputs.project_name }} \
+              ${{ steps.env.outputs.branch_flag }} \
+              --commit-hash=${{ github.sha }} \
+              --commit-message="${{ github.event.head_commit.message || 'Deployment' }}"
 
       - name: Deployment summary
         run: |
           echo "### ✅ Frontend Deployment Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ steps.env.outputs.env_label }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Type:** ${{ steps.env.outputs.deploy_type }}" >> $GITHUB_STEP_SUMMARY
           echo "**Project:** ${{ steps.env.outputs.project_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp:** $(date)" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          DEPLOY_TYPE="${{ steps.env.outputs.deploy_type }}"
+          ENV_TYPE="${{ steps.env.outputs.environment }}"
+          if [ "$DEPLOY_TYPE" = "preview" ]; then
+            echo "**Preview URL:** https://${{ steps.env.outputs.branch_name }}.${{ steps.env.outputs.project_name }}.pages.dev" >> $GITHUB_STEP_SUMMARY
+          elif [ "$ENV_TYPE" = "production" ]; then
+            echo "**Production URL:** https://${{ steps.env.outputs.project_name }}.pages.dev" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Development URL:** https://${{ steps.env.outputs.project_name }}.pages.dev" >> $GITHUB_STEP_SUMMARY
+          fi
