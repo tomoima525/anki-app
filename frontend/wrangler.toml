@@ -1,6 +1,6 @@
 # Cloudflare Pages configuration for Next.js
 # This file configures compatibility flags and settings for Cloudflare Pages deployment
-
+name = "anki-interview-app"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
