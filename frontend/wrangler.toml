@@ -11,14 +11,5 @@ pages_build_output_dir = ".vercel/output/static"
 APP_USERNAME = "admin"
 SESSION_MAX_AGE = "604800"
 SESSION_COOKIE_NAME = "anki_session"
-
-# Dev environment
-[env.dev]
-name = "anki-interview-app"
-[env.dev.vars]
 NEXT_PUBLIC_BACKEND_URL= "https://anki-interview-app.tomoima525.workers.dev"
 
-[env.production]
-name = "anki-interview-app-prod"
-[env.production.vars]
-NEXT_PUBLIC_BACKEND_URL= "https://anki-interview-app-prod.tomoima525.workers.dev"
