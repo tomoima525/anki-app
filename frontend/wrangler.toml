@@ -1,14 +1,14 @@
-# Cloudflare Pages configuration for Next.js
-# This file configures compatibility flags and settings for Cloudflare Pages deployment
+main = ".open-next/worker.js"
 name = "anki-interview-app"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-03-25"
 compatibility_flags = ["nodejs_compat"]
 
-# Pages configuration
-pages_build_output_dir = ".vercel/output/static"
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
 
 [vars]
-APP_USERNAME = "admin"
 SESSION_MAX_AGE = "604800"
 SESSION_COOKIE_NAME = "anki_session"
 NEXT_PUBLIC_BACKEND_URL= "https://anki-interview-app.tomoima525.workers.dev"

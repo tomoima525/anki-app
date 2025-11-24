@@ -7,7 +7,7 @@ A small personal web app that:
 • Lets you study them as flashcards.
 • Shows a question → reveal answer → mark difficulty.
 • Saves logs and last difficulty in a simple DB.
-• Protects everything with basic auth (single user).
+• Protects everything with Google OAuth authentication.
 • Runs fully on Cloudflare + Next.js.
 
 Non-goals:
@@ -73,9 +73,9 @@ Non-goals:
 • Recent logs.
 
 3.4 Auth
-• Single username/password.
-• Stored in environment variables.
-• Session cookie after login.
+• Google OAuth 2.0 authentication.
+• Automatic user account creation on first login.
+• Session cookie after authentication.
 • Middleware protects all pages & API routes.
 
 ⸻
@@ -129,7 +129,7 @@ Study
 6. UI / Pages (Next.js)
 
 /login
-• Simple username/password form.
+• Google OAuth sign-in button.
 
 /study
 • Displays question → reveal → difficulty buttons → next question.

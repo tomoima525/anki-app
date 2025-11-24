@@ -1,45 +1,70 @@
 "use client";
 
-import { useState, FormEvent, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { getGoogleAuthUrl, generateOAuthState } from "@/lib/google-oauth";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError("");
+  useEffect(() => {
+    // Check for error in query params
+    const errorParam = searchParams.get("error");
+    if (errorParam === "google_auth_failed") {
+      setError("Google authentication failed. Please try again.");
+    } else if (errorParam === "access_denied") {
+      setError("Access denied. Please grant the required permissions.");
+    }
+  }, [searchParams]);
+
+  const handleGoogleSignIn = () => {
     setLoading(true);
+    setError("");
 
     try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Login failed");
+      // Check if Google Client ID is available
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (!clientId) {
+        setError(
+          "Google authentication is not configured. Please contact support."
+        );
         setLoading(false);
         return;
       }
 
-      // Redirect to original destination or study page
-      const from = searchParams.get("from") || "/study";
-      router.push(from);
-    } catch (err) {
-      setError("Network error. Please try again.");
+      // Generate state for CSRF protection
+      const state = generateOAuthState();
+
+      // Store state in cookie for server-side validation
+      // Set cookie with 10 minute expiration (enough time for OAuth flow)
+      const cookieOptions = `path=/; max-age=600; SameSite=Lax`;
+      document.cookie = `oauth_state=${state}; ${cookieOptions}`;
+
+      // Get redirect URI
+      const redirectUri = `${window.location.origin}/api/auth/callback/google`;
+
+      // Preserve original destination in cookie
+      const from = searchParams.get("from");
+      if (from) {
+        document.cookie = `oauth_redirect=${encodeURIComponent(from)}; ${cookieOptions}`;
+      }
+
+      // Redirect to Google OAuth
+      const authUrl = getGoogleAuthUrl(redirectUri, state);
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error("Google sign in error:", error);
+      setError("Failed to initiate Google sign in. Please try again.");
       setLoading(false);
     }
   };
@@ -48,53 +73,30 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="max-w-md w-full">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-center text-3xl">Anki Interview App</CardTitle>
+          <CardTitle className="text-center text-3xl">
+            Anki Interview App
+          </CardTitle>
           <CardDescription className="text-center">
-            Sign in to continue
+            Sign in with Google to continue
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-4">
             {error && (
               <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
                 {error}
               </div>
             )}
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
             <Button
-              type="submit"
+              onClick={handleGoogleSignIn}
               disabled={loading}
               className="w-full"
+              size="lg"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Redirecting..." : "Sign in with Google"}
             </Button>
-          </form>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -103,7 +105,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div>Loading...</div></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div>Loading...</div>
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

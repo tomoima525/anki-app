@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { verifySession, getSessionCookieConfig } from "@/lib/session";
 
 // Routes that don't require authentication
-const publicPaths = ["/login", "/api/login"];
+const publicPaths = ["/login", "/api/auth/callback/google"];
 
 // Static assets and Next.js internals
 const publicPatterns = [

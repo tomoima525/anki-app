@@ -8,7 +8,7 @@ A single-page application for spaced repetition study sessions with interview qu
 
 ## Features
 
-- **Authentication**: JWT-based session management with HTTP-only cookies
+- **Authentication**: Google OAuth 2.0 with JWT-based session management
 - **Study Flow**: Spaced repetition interface for reviewing questions
 - **Question Management**: Browse and manage interview questions
 - **GitHub Sync**: Import questions from GitHub repositories
@@ -17,8 +17,8 @@ A single-page application for spaced repetition study sessions with interview qu
 
 - **Framework**: Next.js 15 (App Router)
 - **UI**: React 18 with Tailwind CSS
-- **Authentication**: JWT (jose library) + bcrypt
-- **Deployment**: Cloudflare Pages
+- **Authentication**: Google OAuth 2.0 + JWT (jose library)
+- **Deployment**: Cloudflare Workers via OpenNext.js
 
 ## Development
 
@@ -32,47 +32,39 @@ pnpm dev
 # Build for production
 pnpm build
 
-# Build for Cloudflare Pages
-pnpm pages:build
+# Preview OpenNext.js build locally
+pnpm preview
+
+# Deploy to Cloudflare Workers
+pnpm deploy
 ```
 
 The app will be available at `http://localhost:3000`.
 
 ## Environment Variables
 
-Create a `.env.local` file (see `.env.local.example`):
+Create a `.env.local` file:
 
 ```env
-# Auth credentials
-APP_USERNAME=admin
-APP_PASSWORD_HASH_B64=JGJiJDEwJC4uLg==
-SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
+# Google OAuth
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 # Session configuration
+SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800  # 7 days in seconds
 ```
 
-### Generate Password Hash
+### Google OAuth Setup
 
-```bash
-# Generate bcrypt hash
-node -e "const bcrypt = require('bcrypt'); bcrypt.hash('your-password', 10).then(console.log);"
-```
-
-### Encode Password Hash for Environment Variables
-
-If your password hash contains special characters (dots, dollar signs) that cause parsing issues, encode it to base64:
-
-```bash
-# Encode an existing hash to base64
-node scripts/encode-password-hash.js $\2b$\10$\your-hash-here
-
-# Or pipe the hash
-echo "$2b$10$your-hash-here" | node scripts/encode-password-hash.js
-```
-
-Then use `APP_PASSWORD_HASH_B64` instead of `APP_PASSWORD_HASH` in your `.env.local` file.
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Google+ API
+3. Create OAuth 2.0 credentials
+4. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google` (development)
+5. Add production redirect URI: `https://your-domain.com/api/auth/callback/google`
+6. Copy Client ID and Client Secret to environment variables
 
 ## Project Structure
 
@@ -87,37 +79,98 @@ src/
 ├── components/      # React components
 │   └── LogoutButton.tsx
 ├── lib/            # Utility libraries
-│   ├── auth.ts     # Authentication utilities
+│   ├── google-oauth.ts  # Google OAuth utilities
+│   ├── users.ts    # User management
 │   └── session.ts  # Session management
 └── middleware.ts   # Route protection middleware
 ```
 
 ## Authentication
 
-The app uses JWT-based authentication with the following flow:
+The app uses Google OAuth 2.0 authentication with the following flow:
 
-1. User submits credentials at `/login`
-2. Backend verifies credentials and creates JWT token
-3. Token stored in HTTP-only cookie
-4. Middleware protects all routes except `/login`
-5. Session expires after 7 days (configurable)
-
-Default credentials (development):
-
-- **Username**: `admin`
-- **Password**: `admin123`
+1. User clicks "Sign in with Google" at `/login`
+2. User is redirected to Google OAuth consent screen
+3. After consent, Google redirects back with authorization code
+4. Backend exchanges code for tokens and creates user account (if new)
+5. JWT session token created and stored in HTTP-only cookie
+6. Middleware protects all routes except `/login` and OAuth callback
+7. Session expires after 7 days (configurable)
 
 ## Deployment
 
-Deploy to Cloudflare Pages for dev:
+This frontend is deployed to Cloudflare Workers using [OpenNext.js](https://opennext.js.org/), which adapts Next.js applications for edge runtime environments.
 
+### Prerequisites
+
+1. Install Wrangler CLI globally (if not already installed):
 ```bash
-pnpm pages:build
-npx wrangler pages deploy .vercel/output/static --project-name=anki-interview-app
+pnpm add -g wrangler
 ```
 
-Set environment variables in Cloudflare dashboard:
+2. Authenticate with Cloudflare:
+```bash
+wrangler login
+```
 
-- `APP_USERNAME`
-- `APP_PASSWORD_HASH`
-- `SESSION_SECRET`
+### Build and Deploy
+
+Deploy to Cloudflare Workers:
+
+```bash
+# Build and deploy in one command
+pnpm deploy
+```
+
+Or build and preview locally first:
+
+```bash
+# Build and preview locally
+pnpm preview
+```
+
+The build process will:
+1. Build your Next.js application
+2. Adapt it for Cloudflare Workers using OpenNext.js
+3. Generate the worker bundle in `.open-next/` directory
+4. Deploy to Cloudflare Workers (or start local preview server)
+
+### Configuration
+
+The deployment is configured via `wrangler.toml`:
+
+- **Main entry**: `.open-next/worker.js` (generated by OpenNext.js)
+- **Assets**: Served from `.open-next/assets` directory
+- **Environment variables**: Set via `wrangler secret put` or in `wrangler.toml` under `[vars]`
+
+### Environment Variables
+
+Set secrets in Cloudflare Workers:
+
+```bash
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
+wrangler secret put SESSION_SECRET
+```
+
+Public environment variables can be set in `wrangler.toml` under `[vars]`:
+
+```toml
+[vars]
+NEXT_PUBLIC_GOOGLE_CLIENT_ID = "your-client-id"
+SESSION_COOKIE_NAME = "anki_session"
+SESSION_MAX_AGE = "604800"
+NEXT_PUBLIC_BACKEND_URL = "https://your-backend.workers.dev"
+```
+
+### OpenNext.js Configuration
+
+The OpenNext.js configuration is in `open-next.config.ts`:
+
+```typescript
+import { defineCloudflareConfig } from "@opennextjs/cloudflare";
+
+export default defineCloudflareConfig();
+```
+
+This uses the default Cloudflare adapter configuration. For custom settings, see the [OpenNext.js documentation](https://opennext.js.org/).

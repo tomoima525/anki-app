@@ -55,8 +55,8 @@ pnpm db:migrate:prod
 
 Required secrets (set via `wrangler secret put`):
 
-- `APP_USERNAME` - Admin username
-- `APP_PASSWORD_HASH` - Bcrypt hash of admin password
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 - `SESSION_SECRET` - JWT signing secret
 
 ## API Endpoints

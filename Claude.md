@@ -164,8 +164,9 @@ Migration files are in `backend/db/migrations/`. Always create new migrations fo
 ### Frontend (`frontend/.env.local`)
 
 ```env
-APP_USERNAME=admin
-APP_PASSWORD_HASH=$2b$10$...
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800
@@ -175,15 +176,15 @@ SESSION_MAX_AGE=604800
 
 Backend uses Cloudflare Workers secrets (set via `wrangler secret put`):
 
-- `APP_USERNAME`
-- `APP_PASSWORD_HASH`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
 - `SESSION_SECRET`
 - `GITHUB_TOKEN` (for GitHub API)
 - `OPENAI_API_KEY` (for AI features)
 
 ## Key Features
 
-1. **Authentication**: Single-user auth with bcrypt + JWT
+1. **Authentication**: Google OAuth 2.0 with JWT sessions
 2. **Question Management**: CRUD operations for interview questions
 3. **GitHub Sync**: Import questions from GitHub repositories using Octokit
 4. **Spaced Repetition**: Study algorithm for optimal learning

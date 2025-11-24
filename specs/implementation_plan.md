@@ -25,14 +25,18 @@
 ## 3. Env and Auth
 
 1. Define env vars:
-   - `APP_USERNAME`
-   - `APP_PASSWORD_HASH` (bcrypt or similar).
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (for client-side)
+   - `SESSION_SECRET`
    - `GITHUB_SOURCE_URL` (or hardcode for now).
-2. Implement simple session:
+2. Implement Google OAuth authentication:
+   - Set up Google OAuth flow
+   - Create user accounts on first login
    - Sign a JWT-like token with a secret (e.g. `SESSION_SECRET`).
    - Store in HTTP-only cookie.
 3. Add `middleware.ts`:
-   - Protect all routes except `/login` and static files.
+   - Protect all routes except `/login` and OAuth callback.
    - If no valid session cookie → redirect to `/login`.
 
 ---
@@ -41,11 +45,14 @@
 
 Create route handlers under `app/api`.
 
-### 4.1 Login / Logout
+### 4.1 Authentication
 
-- `POST /api/login`
-  - Check username/password.
-  - On success: set cookie, return 200.
+- `GET /api/auth/callback/google`
+  - Handle Google OAuth callback
+  - Exchange code for tokens
+  - Create or update user account
+  - Set session cookie
+  - Redirect to app
 - `POST /api/logout`
   - Clear cookie.
 
@@ -82,9 +89,8 @@ Create route handlers under `app/api`.
 
 ### 5.1 `/login`
 
-- Basic form:
-  - username, password.
-- Call `POST /api/login`.
+- Google OAuth sign-in button.
+- Redirects to Google OAuth consent screen.
 - On success: redirect to `/study`.
 
 ### 5.2 `/study`
