@@ -93,6 +93,7 @@ jobs:
       - name: Build Next.js for Cloudflare Pages
         run: |
           echo "🏗️ Deploy Next.js application for Cloudflare Pages..."
+          export CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}
           pnpm run deploy
           echo "✅ Deploy completed successfully"
 
