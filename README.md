@@ -23,7 +23,7 @@ anki-interview-app/
 - **Framework**: Next.js 15 (App Router)
 - **Styling**: Tailwind CSS
 - **Authentication**: JWT sessions with HTTP-only cookies
-- **Deployment**: Cloudflare Pages
+- **Deployment**: Cloudflare Workers via OpenNext.js
 
 ### Backend
 
@@ -162,13 +162,26 @@ pnpm db:migrate:prod
 
 ## Deployment
 
-### Frontend (Cloudflare Pages)
+### Frontend (Cloudflare Workers via OpenNext.js)
+
+The frontend is deployed to Cloudflare Workers using OpenNext.js, which adapts Next.js applications for edge runtime environments.
 
 ```bash
 cd frontend
-pnpm pages:build
-wrangler pages deploy
+
+# Build and deploy
+pnpm deploy
+
+# Or preview locally first
+pnpm preview
 ```
+
+**Prerequisites:**
+
+- Wrangler CLI installed and authenticated (`wrangler login`)
+- Environment variables set via `wrangler secret put` or in `wrangler.toml`
+
+See `frontend/README.md` for detailed deployment instructions.
 
 ### Backend (Cloudflare Workers)
 

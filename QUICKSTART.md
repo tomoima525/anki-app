@@ -146,8 +146,9 @@ pnpm dev:backend      # Run backend
 
 # Frontend specific
 cd frontend
-pnpm build           # Build for production
-pnpm pages:build     # Build for Cloudflare Pages
+pnpm build           # Build for production (standard Next.js build)
+pnpm preview         # Build and preview with OpenNext.js locally
+pnpm deploy          # Build and deploy to Cloudflare Workers
 
 # Backend specific
 cd backend
