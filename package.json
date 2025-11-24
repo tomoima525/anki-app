@@ -7,6 +7,7 @@
     "dev": "pnpm --filter anki-interview-app dev",
     "dev:backend": "pnpm --filter anki-interview-backend dev",
     "dev:frontend": "pnpm --filter anki-interview-app dev",
+    "preview:frontend": "pnpm --filter anki-interview-app preview",
     "build": "pnpm -r build",
     "build:frontend": "pnpm --filter anki-interview-app build",
     "build:backend": "pnpm --filter anki-interview-backend deploy",
