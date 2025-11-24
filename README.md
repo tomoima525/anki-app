@@ -33,7 +33,7 @@ anki-interview-app/
 
 ## Features
 
-- **Authentication**: Secure single-user authentication with bcrypt + JWT
+- **Authentication**: Google OAuth 2.0 with JWT-based sessions
 - **Question Management**: CRUD operations for interview questions
 - **Study Flow**: Spaced repetition algorithm for optimal learning
 - **GitHub Sync**: Import questions from GitHub repositories
@@ -73,10 +73,7 @@ pnpm dev
 
 Visit `http://localhost:3000`
 
-Default credentials:
-
-- Username: `admin`
-- Password: `admin123`
+Sign in with your Google account.
 
 #### Run Backend
 
@@ -99,8 +96,9 @@ pnpm dev
 #### Frontend (`frontend/.env.local`)
 
 ```env
-APP_USERNAME=admin
-APP_PASSWORD_HASH=$2b$10$...
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800
@@ -114,8 +112,8 @@ Cloudflare Workers use environment variables set via `wrangler secret put`:
 
 ```bash
 cd backend
-wrangler secret put APP_USERNAME
-wrangler secret put APP_PASSWORD_HASH
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put SESSION_SECRET
 ```
 

@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySession, getSessionCookieConfig } from "@/lib/session";
 
+// Edge runtime for Cloudflare Pages
+export const runtime = "edge";
+
 // Routes that don't require authentication
-const publicPaths = ["/login", "/api/login"];
+const publicPaths = ["/login", "/api/auth/callback/google"];
 
 // Static assets and Next.js internals
 const publicPatterns = [

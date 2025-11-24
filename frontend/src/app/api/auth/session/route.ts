@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 export async function GET() {
   const session = await getSession();
@@ -12,6 +12,8 @@ export async function GET() {
 
   return NextResponse.json({
     authenticated: true,
-    username: session.username,
+    userId: session.userId,
+    email: session.email,
+    name: session.name,
   });
 }

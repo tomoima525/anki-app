@@ -38,10 +38,7 @@ cd frontend
 cp .env.local.example .env.local
 ```
 
-The default credentials are:
-
-- Username: `admin`
-- Password: `admin123`
+Sign in with your Google account. Make sure to set up Google OAuth credentials first (see frontend/README.md).
 
 ### Backend
 
@@ -50,8 +47,8 @@ For local development, create `.dev.vars`:
 ```bash
 cd backend
 cat > .dev.vars << EOF
-APP_USERNAME=admin
-APP_PASSWORD_HASH=$2b$10$4QDRqTYragCE2YD.uskSM.Y4PUtBi05qp7bLiQtQRoYnQiU9W.yRG
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 SESSION_SECRET=1238444b8eea019baaf3c1a71845a5d042a8a5adbb787a7d49ba60e9223b680d
 EOF
 ```
@@ -102,10 +99,7 @@ cd backend && pnpm dev
 
 ## 5. Login
 
-Navigate to http://localhost:3000
-
-- **Username**: `admin`
-- **Password**: `admin123`
+Navigate to http://localhost:3000 and sign in with your Google account.
 
 ## Next Steps
 
@@ -138,8 +132,9 @@ pnpm db:migrate  # Try again
 ### Authentication Not Working
 
 1. Verify `.env.local` exists in `frontend/`
-2. Check password hash matches
-3. Restart the development server
+2. Check Google OAuth credentials are configured correctly
+3. Verify redirect URI matches in Google Cloud Console
+4. Restart the development server
 
 ## Common Commands
 

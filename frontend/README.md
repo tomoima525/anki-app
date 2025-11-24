@@ -8,7 +8,7 @@ A single-page application for spaced repetition study sessions with interview qu
 
 ## Features
 
-- **Authentication**: JWT-based session management with HTTP-only cookies
+- **Authentication**: Google OAuth 2.0 with JWT-based session management
 - **Study Flow**: Spaced repetition interface for reviewing questions
 - **Question Management**: Browse and manage interview questions
 - **GitHub Sync**: Import questions from GitHub repositories
@@ -17,7 +17,7 @@ A single-page application for spaced repetition study sessions with interview qu
 
 - **Framework**: Next.js 15 (App Router)
 - **UI**: React 18 with Tailwind CSS
-- **Authentication**: JWT (jose library) + bcrypt
+- **Authentication**: Google OAuth 2.0 + JWT (jose library)
 - **Deployment**: Cloudflare Pages
 
 ## Development
@@ -40,39 +40,28 @@ The app will be available at `http://localhost:3000`.
 
 ## Environment Variables
 
-Create a `.env.local` file (see `.env.local.example`):
+Create a `.env.local` file:
 
 ```env
-# Auth credentials
-APP_USERNAME=admin
-APP_PASSWORD_HASH_B64=JGJiJDEwJC4uLg==
-SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
+# Google OAuth
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 # Session configuration
+SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800  # 7 days in seconds
 ```
 
-### Generate Password Hash
+### Google OAuth Setup
 
-```bash
-# Generate bcrypt hash
-node -e "const bcrypt = require('bcrypt'); bcrypt.hash('your-password', 10).then(console.log);"
-```
-
-### Encode Password Hash for Environment Variables
-
-If your password hash contains special characters (dots, dollar signs) that cause parsing issues, encode it to base64:
-
-```bash
-# Encode an existing hash to base64
-node scripts/encode-password-hash.js $\2b$\10$\your-hash-here
-
-# Or pipe the hash
-echo "$2b$10$your-hash-here" | node scripts/encode-password-hash.js
-```
-
-Then use `APP_PASSWORD_HASH_B64` instead of `APP_PASSWORD_HASH` in your `.env.local` file.
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Google+ API
+3. Create OAuth 2.0 credentials
+4. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google` (development)
+5. Add production redirect URI: `https://your-domain.com/api/auth/callback/google`
+6. Copy Client ID and Client Secret to environment variables
 
 ## Project Structure
 
@@ -87,25 +76,23 @@ src/
 ├── components/      # React components
 │   └── LogoutButton.tsx
 ├── lib/            # Utility libraries
-│   ├── auth.ts     # Authentication utilities
+│   ├── google-oauth.ts  # Google OAuth utilities
+│   ├── users.ts    # User management
 │   └── session.ts  # Session management
 └── middleware.ts   # Route protection middleware
 ```
 
 ## Authentication
 
-The app uses JWT-based authentication with the following flow:
+The app uses Google OAuth 2.0 authentication with the following flow:
 
-1. User submits credentials at `/login`
-2. Backend verifies credentials and creates JWT token
-3. Token stored in HTTP-only cookie
-4. Middleware protects all routes except `/login`
-5. Session expires after 7 days (configurable)
-
-Default credentials (development):
-
-- **Username**: `admin`
-- **Password**: `admin123`
+1. User clicks "Sign in with Google" at `/login`
+2. User is redirected to Google OAuth consent screen
+3. After consent, Google redirects back with authorization code
+4. Backend exchanges code for tokens and creates user account (if new)
+5. JWT session token created and stored in HTTP-only cookie
+6. Middleware protects all routes except `/login` and OAuth callback
+7. Session expires after 7 days (configurable)
 
 ## Deployment
 
@@ -118,6 +105,7 @@ npx wrangler pages deploy .vercel/output/static --project-name=anki-interview-ap
 
 Set environment variables in Cloudflare dashboard:
 
-- `APP_USERNAME`
-- `APP_PASSWORD_HASH`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (same as GOOGLE_CLIENT_ID)
 - `SESSION_SECRET`

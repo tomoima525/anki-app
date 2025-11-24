@@ -2,7 +2,9 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 export interface SessionPayload {
-  username: string;
+  userId: string;
+  email: string;
+  name: string;
   iat: number; // Issued at
   exp: number; // Expiration
 }
@@ -10,8 +12,6 @@ export interface SessionPayload {
 // Environment helpers
 function getEnv() {
   return {
-    username: process.env.APP_USERNAME!,
-    passwordHash: process.env.APP_PASSWORD_HASH!,
     sessionSecret: process.env.SESSION_SECRET!,
     sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || "604800", 10),
     cookieName: process.env.SESSION_COOKIE_NAME || "anki_session",
@@ -19,11 +19,15 @@ function getEnv() {
 }
 
 // Create session token
-export async function createSession(username: string): Promise<string> {
+export async function createSession(
+  userId: string,
+  email: string,
+  name: string
+): Promise<string> {
   const env = getEnv();
   const secret = new TextEncoder().encode(env.sessionSecret);
 
-  const token = await new SignJWT({ username })
+  const token = await new SignJWT({ userId, email, name })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${env.sessionMaxAge}s`)

@@ -1008,8 +1008,8 @@ export default function RootLayout({
 **Cloudflare Workers** (set via `wrangler secret put` or dashboard):
 
 ```bash
-APP_USERNAME=admin
-APP_PASSWORD_HASH=<bcrypt-hash>
+GOOGLE_CLIENT_ID=<google-oauth-client-id>
+GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
 SESSION_SECRET=<random-32-char-string>
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini  # Optional, defaults to gpt-4o-mini
@@ -1021,8 +1021,9 @@ GITHUB_TOKEN=ghp_...      # Optional, for higher rate limits
 **Cloudflare Pages** (set via dashboard):
 
 ```bash
-APP_USERNAME=admin
-APP_PASSWORD_HASH_B64=<base64-bcrypt-hash>
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-oauth-client-id>
+GOOGLE_CLIENT_ID=<google-oauth-client-id>
+GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
 SESSION_SECRET=<same-as-backend>
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800
@@ -1032,33 +1033,31 @@ BACKEND_API_URL=https://anki-interview-app.your-worker.workers.dev
 **Development** (`.env.local`):
 
 ```bash
-APP_USERNAME=admin
-APP_PASSWORD_HASH_B64=<base64-bcrypt-hash>
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-oauth-client-id>
+GOOGLE_CLIENT_ID=<google-oauth-client-id>
+GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
 SESSION_SECRET=<random-32-char-string>
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800
 BACKEND_API_URL=http://localhost:8787
 ```
 
-#### 5.3 Generate password hash
+#### 5.3 Google OAuth Setup
 
-```bash
-# Install bcrypt-cli
-npm install -g bcrypt-cli
-
-# Generate hash
-bcrypt-cli "your-password" 10
-
-# For frontend (base64 encoded)
-echo -n "bcrypt-hash-here" | base64
-```
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Google+ API
+3. Create OAuth 2.0 credentials
+4. Add authorized redirect URIs:
+   - Development: `http://localhost:3000/api/auth/callback/google`
+   - Production: `https://your-domain.com/api/auth/callback/google`
+5. Copy Client ID and Client Secret to environment variables
 
 **Acceptance Criteria:**
 
 - [ ] All required environment variables documented
 - [ ] Backend secrets configured in Cloudflare Workers
 - [ ] Frontend env vars configured in Cloudflare Pages
-- [ ] Password hash generated securely
+- [ ] Google OAuth credentials configured
 - [ ] SESSION_SECRET matches between frontend and backend
 
 ### 6. Testing
