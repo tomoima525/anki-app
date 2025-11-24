@@ -11,8 +11,6 @@ import {
 } from "@/lib/users";
 import { createSession, getSessionCookieConfig } from "@/lib/session";
 
-export const runtime = "edge";
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

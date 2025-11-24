@@ -92,18 +92,11 @@ jobs:
 
       - name: Build Next.js for Cloudflare Pages
         run: |
-          echo "🏗️ Building Next.js application for Cloudflare Pages..."
-          pnpm run pages:build
-          echo "✅ Build completed successfully"
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: ./frontend
-          command: |
-            pages deploy .vercel/output/static --project-name=${{ steps.env.outputs.project_name }} ${{ steps.env.outputs.branch_flag }} --commit-hash=${{ github.sha }} --commit-message="${{ github.event.head_commit.message || 'Deployment' }}"
+          echo "🏗️ Deploy Next.js application for Cloudflare Pages..."
+          export CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}
+          export CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          pnpm run deploy
+          echo "✅ Deploy completed successfully"
 
       - name: Deployment summary
         run: |
