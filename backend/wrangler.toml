@@ -1,4 +1,4 @@
-name = "anki-interview-app"
+name = "anki-interview-backend"
 compatibility_date = "2025-01-01"
 main = "src/index.ts"
 
@@ -11,7 +11,7 @@ migrations_dir = "db/migrations"
 
 # Dev environment (deployed from main branch)
 [env.dev]
-name = "anki-interview-app"
+name = "anki-interview-backend"
 [[env.dev.d1_databases]]
 binding = "DB"
 database_name = "anki-interview-db"
@@ -20,7 +20,7 @@ migrations_dir = "db/migrations"
 
 # Production environment (deployed from release-* branches)
 [env.production]
-name = "anki-interview-app-prod"
+name = "anki-interview-backend-prod"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "anki-interview-db-prod"
