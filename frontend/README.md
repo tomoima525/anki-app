@@ -121,14 +121,14 @@ Deploy to Cloudflare Workers:
 
 ```bash
 # Build and deploy in one command
-pnpm deploy
+pnpm worker:deploy
 ```
 
 Or build and preview locally first:
 
 ```bash
 # Build and preview locally
-pnpm preview
+pnpm worker:preview
 ```
 
 The build process will:
