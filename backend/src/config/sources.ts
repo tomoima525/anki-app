@@ -6,16 +6,26 @@ export interface QuestionSource {
 }
 
 export const QUESTION_SOURCES: QuestionSource[] = [
-  // {
-  //   id: "backend-interview",
-  //   name: "Back-End Developer Interview Questions",
-  //   url: "https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md",
-  // },
   {
-    id: "javascript-interview",
-    name: "JavaScript Interview Questions",
-    url: "https://raw.githubusercontent.com/sudheerj/javascript-interview-questions/master/README.md",
+    id: "backend-interview",
+    name: "Back-End Developer Interview Questions",
+    url: "https://raw.githubusercontent.com/arialdomartini/Back-End-Developer-Interview-Questions/master/README.md",
   },
+  {
+    id: "TypeScript Interview Questions",
+    name: "TypeScript Interview Questions",
+    url: "https://raw.githubusercontent.com/Devinterview-io/typescript-interview-questions/main/README.md",
+  },
+  // {
+  //   id: "javascript-interview",
+  //   name: "JavaScript Interview Questions",
+  //   url: "https://raw.githubusercontent.com/sudheerj/javascript-interview-questions/master/README.md",
+  // },
+  // {
+  //   id: "React Interview Questions",
+  //   name: "React Interview Questions",
+  //   url: "https://raw.githubusercontent.com/sudheerj/reactjs-interview-questions/master/README.md",
+  // },
   // Add more sources as needed
 ];
 

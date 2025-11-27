@@ -72,10 +72,14 @@ export function questionsCSVToSQL(
         last_answered_at,
         last_difficulty,
         answer_count,
+        source_name,
       ] = values;
 
-      sql += `INSERT OR REPLACE INTO questions (id, question_text, answer_text, source, created_at, updated_at, last_answered_at, last_difficulty, answer_count)\n`;
-      sql += `VALUES ('${escapeSQLString(id)}', '${escapeSQLString(question_text)}', '${escapeSQLString(answer_text)}', '${escapeSQLString(source)}', '${escapeSQLString(created_at)}', '${escapeSQLString(updated_at)}', ${last_answered_at ? "'" + escapeSQLString(last_answered_at) + "'" : "NULL"}, ${last_difficulty ? "'" + escapeSQLString(last_difficulty) + "'" : "NULL"}, ${answer_count || 0});\n`;
+      // If source_name doesn't exist (old CSV format), use source as fallback
+      const finalSourceName = source_name || source;
+
+      sql += `INSERT OR REPLACE INTO questions (id, question_text, answer_text, source, source_name, created_at, updated_at, last_answered_at, last_difficulty, answer_count)\n`;
+      sql += `VALUES ('${escapeSQLString(id)}', '${escapeSQLString(question_text)}', '${escapeSQLString(answer_text)}', '${escapeSQLString(source)}', '${escapeSQLString(finalSourceName)}', '${escapeSQLString(created_at)}', '${escapeSQLString(updated_at)}', ${last_answered_at ? "'" + escapeSQLString(last_answered_at) + "'" : "NULL"}, ${last_difficulty ? "'" + escapeSQLString(last_difficulty) + "'" : "NULL"}, ${answer_count || 0});\n`;
       count++;
     }
   }

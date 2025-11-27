@@ -21,7 +21,7 @@ QUESTIONS_FILE="$DATA_DIR/questions_${TIMESTAMP}.csv"
 
 # Get questions data as JSON and convert to CSV
 npx wrangler d1 execute anki-interview-db --local \
-  --command="SELECT id, question_text, answer_text, source, created_at, updated_at, last_answered_at, last_difficulty, answer_count FROM questions ORDER BY created_at DESC" \
+  --command="SELECT id, question_text, answer_text, source, created_at, updated_at, last_answered_at, last_difficulty, answer_count, source_name FROM questions ORDER BY created_at DESC" \
   --json 2>&1 | sed -n '/^\[/,$ p' > /tmp/questions_export.json
 
 # Convert JSON to CSV using TypeScript module

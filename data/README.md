@@ -206,9 +206,11 @@ pnpm --filter anki-interview-backend db:export
 
 **questions_YYYY-MM-DDTHH-MM-SS.csv**
 ```csv
-id,question_text,answer_text,source,created_at,updated_at,last_answered_at,last_difficulty,answer_count
-seed1,What is REST?,Representational State Transfer...,api.md,2025-11-20 15:55:56,2025-11-20 15:55:56,null,null,0
+id,question_text,answer_text,source,created_at,updated_at,last_answered_at,last_difficulty,answer_count,source_name
+seed1,What is REST?,Representational State Transfer...,api.md,2025-11-20 15:55:56,2025-11-20 15:55:56,null,null,0,API Questions
 ```
+
+**Note**: The `source_name` field is optional in CSV imports. If not provided, the `source` value will be used as `source_name`.
 
 **answer_logs_YYYY-MM-DDTHH-MM-SS.csv**
 ```csv

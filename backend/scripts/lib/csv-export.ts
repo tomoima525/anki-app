@@ -82,6 +82,7 @@ export function exportQuestionsToCSV(
     "last_answered_at",
     "last_difficulty",
     "answer_count",
+    "source_name",
   ]);
 
   writeFileSync(csvFilePath, csv, "utf-8");
