@@ -2,8 +2,9 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import globals from "globals";
 import prettierConfig from "eslint-config-prettier";
+import { defineConfig } from "eslint/config";
 
-export default tseslint.config(
+export default defineConfig(
   // Ignore patterns
   {
     ignores: [
@@ -15,6 +16,7 @@ export default tseslint.config(
       "**/pnpm-lock.yaml",
       "**/*.config.js",
       "**/*.config.mjs",
+      "**/*.config.ts",
     ],
   },
 
