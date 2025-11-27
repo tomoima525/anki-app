@@ -5,9 +5,7 @@ import {
   validateOAuthState,
 } from "@/lib/google-oauth";
 import {
-  findUserByGoogleId,
   createUserFromGoogle,
-  updateLastLogin,
 } from "@/lib/users";
 import { createSession, getSessionCookieConfig } from "@/lib/session";
 
@@ -75,23 +73,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find or create user
+    // Create or update user in backend database
     let user;
     try {
-      const existingUser = await findUserByGoogleId(googleUser.googleId);
-
-      if (existingUser) {
-        // Existing user - update last login
-        user = await updateLastLogin(existingUser.id);
-      } else {
-        // New user - create account
-        user = await createUserFromGoogle(
-          googleUser.googleId,
-          googleUser.email,
-          googleUser.name,
-          googleUser.picture
-        );
-      }
+      user = await createUserFromGoogle(
+        googleUser.googleId,
+        googleUser.email,
+        googleUser.name,
+        googleUser.picture
+      );
     } catch (error) {
       console.error("User creation/update failed:", error);
       return NextResponse.redirect(

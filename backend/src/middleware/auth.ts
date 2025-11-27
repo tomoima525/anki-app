@@ -102,7 +102,8 @@ export async function authMiddleware(c: Context, next: Next) {
   if (!token) {
     return c.json({ error: "Unauthorized - No session token" }, 401);
   }
-
+  console.log("token", token);
+  console.log("sessionSecret", sessionSecret);
   // Verify JWT token
   const payload = await verifyToken(token, sessionSecret);
 
@@ -131,17 +132,11 @@ export async function adminMiddleware(c: Context, next: Next) {
   const user = c.get("user") as UserContext | undefined;
 
   if (!user) {
-    return c.json(
-      { error: "Unauthorized - Authentication required" },
-      401
-    );
+    return c.json({ error: "Unauthorized - Authentication required" }, 401);
   }
 
   if (!user.isAdmin) {
-    return c.json(
-      { error: "Forbidden - Admin access required" },
-      403
-    );
+    return c.json({ error: "Forbidden - Admin access required" }, 403);
   }
 
   await next();
