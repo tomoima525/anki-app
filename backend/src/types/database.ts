@@ -7,6 +7,7 @@ export interface Question {
   question_text: string;
   answer_text: string;
   source: string;
+  source_name: string | null;
   created_at: string;
   updated_at: string;
   last_answered_at: string | null;

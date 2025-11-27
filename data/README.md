@@ -1,14 +1,188 @@
 # Data Export/Import Tools
 
-This directory contains CSV exports of Question/Answer data from the Anki Interview App database.
+This directory contains exports of Question/Answer data from the Anki Interview App database in both CSV and JSON formats.
 
 ## Overview
 
-The export/import tools allow you to:
+This directory supports two workflows:
+
+### 1. GitHub Sync Workflow (JSON)
+Parse questions from GitHub repositories with review before database import:
+1. **Fetch & Parse** questions from GitHub to JSON files
+2. **Generate Answers** with OpenAI (if not present)
+3. **Review** the JSON files
+4. **Upsert** reviewed data to the database
+
+### 2. Database Export/Import (CSV)
+Export and import data between local and production databases:
 1. **Export** questions and answer logs from your local D1 database to CSV files
 2. **Import** CSV data to your remote (production) D1 database
 
-CSV files are automatically ignored by git to prevent accidentally committing large data files.
+Both CSV and JSON files are automatically ignored by git to prevent accidentally committing large data files.
+
+---
+
+## GitHub Sync Workflow
+
+This workflow allows you to fetch questions from GitHub repositories, optionally generate answers with AI, review the results, and then import them to the database.
+
+### Step 1: Fetch and Parse Questions
+
+```bash
+# From the backend directory
+pnpm fetch-parse
+
+# Or from the root directory
+pnpm --filter anki-interview-backend fetch-parse
+```
+
+**What it does:**
+- Fetches markdown files from configured GitHub sources (see `backend/src/config/sources.ts`)
+- Detects if answers are already present in the markdown using AI
+- Parses questions and answers (if present)
+- Saves results to JSON files in `data/` directory:
+  - Individual source files: `<source_name>_YYYY-MM-DD.json`
+  - Combined file: `all_sources_YYYY-MM-DD.json`
+
+**JSON Format:**
+```json
+{
+  "source": "Source Name",
+  "sourceUrl": "https://github.com/...",
+  "questions": [
+    {
+      "title": "Question Title",
+      "content": "Question content...",
+      "answer": "Answer content...",
+      "hasAnswer": true,
+      "source": "Source Name",
+      "sourceUrl": "https://github.com/..."
+    }
+  ],
+  "hasAnswers": true,
+  "timestamp": "2025-11-28T10:30:00.000Z"
+}
+```
+
+### Step 2: Generate Answers (if needed)
+
+If some questions don't have answers, run:
+
+```bash
+# From the backend directory
+pnpm generate-answers
+
+# Or from the root directory
+pnpm --filter anki-interview-backend generate-answers
+```
+
+**What it does:**
+- Reads JSON files from `data/` directory
+- Identifies questions without answers (`hasAnswer: false`)
+- Uses OpenAI to generate answers for those questions
+- Updates the JSON files with generated answers
+- Updates the combined file
+
+**Environment Variables Required:**
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `OPENAI_MODEL` (optional): Model to use (default: `gpt-4o-mini`)
+
+### Step 3: Review the Data
+
+Before importing to the database, review the JSON files in the `data/` directory:
+
+1. Open the JSON files and verify:
+   - Questions are correctly parsed
+   - Answers are accurate and complete
+   - Metadata (source, sourceUrl) is correct
+
+2. Edit any questions/answers that need corrections
+
+3. Check the combined file (`all_sources_YYYY-MM-DD.json`) for an overview
+
+### Step 4: Upsert to Database
+
+Once you've reviewed and are satisfied with the data:
+
+```bash
+# From the backend directory
+pnpm upsert-data
+
+# Or from the root directory
+pnpm --filter anki-interview-backend upsert-data
+```
+
+**What it does:**
+- Reads JSON files from `data/` directory
+- Validates that all questions have answers
+- Upserts questions to the local D1 database
+- Shows summary of inserted, updated, and skipped questions
+
+**Behavior:**
+- **Insert**: New questions not in the database
+- **Update**: Existing questions (matched by title + content)
+- **Skip**: Questions that haven't changed
+
+### Complete Workflow Example
+
+```bash
+# 1. Fetch questions from GitHub
+cd backend
+pnpm fetch-parse
+
+# Output shows: 25 questions parsed, 10 need answers
+
+# 2. Generate missing answers
+pnpm generate-answers
+
+# Output shows: Generated 10 answers
+
+# 3. Review the JSON files
+cat ../data/my_source_2025-11-28.json
+# Edit if needed...
+
+# 4. Upsert to database
+pnpm upsert-data
+
+# Output shows: 25 inserted, 0 updated, 0 skipped
+```
+
+### Configuring Sources
+
+Sources are configured in `backend/src/config/sources.ts`. Add new sources:
+
+```typescript
+export function getAllSources() {
+  return [
+    {
+      name: "My Interview Questions",
+      url: "https://github.com/username/repo/blob/main/questions.md"
+    },
+    // Add more sources...
+  ];
+}
+```
+
+### Troubleshooting
+
+**"No JSON files found in data/ directory"**
+- Run `pnpm fetch-parse` first
+
+**"Questions don't have answers"**
+- Run `pnpm generate-answers` to generate missing answers
+- Or manually add answers to the JSON files
+
+**"OPENAI_API_KEY is not set"**
+- Set environment variable: `export OPENAI_API_KEY=sk-...`
+- Or add to `.env` file in backend directory
+
+**"GITHUB_TOKEN is not set"**
+- Set environment variable: `export GITHUB_TOKEN=ghp_...`
+- Or add to `.env` file in backend directory
+
+---
+
+## CSV Export/Import
 
 ## Export Data
 

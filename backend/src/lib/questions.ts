@@ -12,7 +12,8 @@ export async function upsertQuestion(
   db: D1Database,
   question: string,
   answer: string,
-  source: string
+  source: string,
+  sourceName?: string
 ): Promise<"inserted" | "updated"> {
   const id = await generateQuestionId(question);
   const now = new Date().toISOString();
@@ -28,10 +29,10 @@ export async function upsertQuestion(
     await db
       .prepare(
         `UPDATE questions
-         SET answer_text = ?, source = ?, updated_at = ?
+         SET answer_text = ?, source = ?, source_name = ?, updated_at = ?
          WHERE id = ?`
       )
-      .bind(answer, source, now, id)
+      .bind(answer, source, sourceName || null, now, id)
       .run();
 
     return "updated";
@@ -39,10 +40,10 @@ export async function upsertQuestion(
     // Insert new question
     await db
       .prepare(
-        `INSERT INTO questions (id, question_text, answer_text, source, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO questions (id, question_text, answer_text, source, source_name, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(id, question, answer, source, now, now)
+      .bind(id, question, answer, source, sourceName || null, now, now)
       .run();
 
     return "inserted";
@@ -52,7 +53,8 @@ export async function upsertQuestion(
 export async function upsertQuestions(
   db: D1Database,
   questions: Array<{ question: string; answer: string }>,
-  source: string
+  source: string,
+  sourceName?: string
 ): Promise<UpsertResult> {
   const result: UpsertResult = {
     inserted: 0,
@@ -63,7 +65,7 @@ export async function upsertQuestions(
 
   for (const { question, answer } of questions) {
     try {
-      const action = await upsertQuestion(db, question, answer, source);
+      const action = await upsertQuestion(db, question, answer, source, sourceName);
 
       if (action === "inserted") {
         result.inserted++;
@@ -83,7 +85,8 @@ export async function upsertQuestions(
 export async function batchUpsertQuestions(
   db: D1Database,
   questions: Array<{ question: string; answer: string }>,
-  source: string
+  source: string,
+  sourceName?: string
 ): Promise<UpsertResult> {
   const result: UpsertResult = {
     inserted: 0,
@@ -103,10 +106,10 @@ export async function batchUpsertQuestions(
       db
         .prepare(
           `INSERT OR REPLACE INTO questions
-         (id, question_text, answer_text, source, created_at, updated_at)
-         VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM questions WHERE id = ?), ?), ?)`
+         (id, question_text, answer_text, source, source_name, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM questions WHERE id = ?), ?), ?)`
         )
-        .bind(id, question, answer, source, id, now, now)
+        .bind(id, question, answer, source, sourceName || null, id, now, now)
     );
   }
 

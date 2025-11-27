@@ -47,6 +47,7 @@ Thumbs.db
 
 # Data exports
 data/*.csv
+data/*.json
 
 
 .open-next/
