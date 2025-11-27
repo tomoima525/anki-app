@@ -83,23 +83,56 @@ app.route("/api/users", usersRouter);
 // Study endpoints
 
 /**
+ * GET /api/study/sources
+ * Get list of available sources
+ * Requires authentication
+ */
+app.get("/api/study/sources", authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+
+    const result = await db
+      .prepare(
+        `SELECT DISTINCT source
+         FROM questions
+         ORDER BY source`
+      )
+      .all<{ source: string }>();
+
+    return c.json({
+      sources: result.results || [],
+    });
+  } catch (error) {
+    console.error("Get sources error:", error);
+    return c.json({ error: "Failed to get sources" }, 500);
+  }
+});
+
+/**
  * POST /api/study/next
  * Get a random question (without answer)
+ * Accepts optional 'source' query parameter to filter by source
  * Requires authentication
  */
 app.post("/api/study/next", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
+    const source = c.req.query("source");
 
-    // For v1: simple random selection
-    // Future: weight by last_answered_at or difficulty
+    // Build query based on whether source filter is provided
+    let query = `SELECT id, question_text, source FROM questions`;
+    const bindings: string[] = [];
+
+    if (source) {
+      query += ` WHERE source = ?`;
+      bindings.push(source);
+    }
+
+    query += ` ORDER BY RANDOM() LIMIT 1`;
+
     const question = await db
-      .prepare(
-        `SELECT id, question_text, source
-         FROM questions
-         ORDER BY RANDOM()
-         LIMIT 1`
-      )
+      .prepare(query)
+      .bind(...bindings)
       .first<{ id: string; question_text: string; source: string }>();
 
     if (!question) {

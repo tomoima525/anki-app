@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 interface QuestionData {
   id: string;
@@ -13,16 +12,22 @@ interface QuestionData {
 type Difficulty = "easy" | "medium" | "hard";
 
 export default function StudyPage() {
-  const router = useRouter();
   const [question, setQuestion] = useState<QuestionData | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sources, setSources] = useState<string[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string>("");
 
-  // Load first question on mount
+  // Load available sources on mount
+  useEffect(() => {
+    loadSources();
+  }, []);
+
+  // Load first question when source changes
   useEffect(() => {
     loadNextQuestion();
-  }, []);
+  }, [selectedSource]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -47,6 +52,25 @@ export default function StudyPage() {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [showAnswer, loading, question]);
 
+  const loadSources = async () => {
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
+      const response = await fetch(`${backendUrl}/api/study/sources`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load sources");
+      }
+
+      const data = await response.json();
+      setSources(data.sources.map((s: { source: string }) => s.source));
+    } catch (err) {
+      console.error("Load sources error:", err);
+    }
+  };
+
   const loadNextQuestion = async () => {
     setLoading(true);
     setError(null);
@@ -56,7 +80,12 @@ export default function StudyPage() {
       // Call backend API (configure BACKEND_URL in .env)
       const backendUrl =
         process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
-      const response = await fetch(`${backendUrl}/api/study/next`, {
+      const url = new URL(`${backendUrl}/api/study/next`);
+      if (selectedSource) {
+        url.searchParams.append("source", selectedSource);
+      }
+
+      const response = await fetch(url.toString(), {
         method: "POST",
         credentials: "include", // Send cookies for auth
       });
@@ -160,6 +189,31 @@ export default function StudyPage() {
             </a>
           </nav>
         </div>
+
+        {/* Source Filter */}
+        {sources.length > 0 && (
+          <div className="mb-6">
+            <label
+              htmlFor="source-filter"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Filter by Source:
+            </label>
+            <select
+              id="source-filter"
+              value={selectedSource}
+              onChange={(e) => setSelectedSource(e.target.value)}
+              className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="">All Sources</option>
+              {sources.map((source) => (
+                <option key={source} value={source}>
+                  {source.split("/").pop()}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Keyboard shortcuts hint */}
         <div className="mb-4 text-sm text-gray-500 text-center">
