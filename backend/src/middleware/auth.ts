@@ -98,12 +98,10 @@ export async function authMiddleware(c: Context, next: Next) {
 
   // Get token from cookie
   const token = getCookie(c, cookieName);
-
+  console.log("token", token);
   if (!token) {
     return c.json({ error: "Unauthorized - No session token" }, 401);
   }
-  console.log("token", token);
-  console.log("sessionSecret", sessionSecret);
   // Verify JWT token
   const payload = await verifyToken(token, sessionSecret);
 
@@ -118,6 +116,7 @@ export async function authMiddleware(c: Context, next: Next) {
     return c.json({ error: "Unauthorized - User not found" }, 401);
   }
 
+  console.log("user", user);
   // Attach user context to request
   c.set("user", user);
 
@@ -130,6 +129,7 @@ export async function authMiddleware(c: Context, next: Next) {
  */
 export async function adminMiddleware(c: Context, next: Next) {
   const user = c.get("user") as UserContext | undefined;
+  console.log("adminuser", user);
 
   if (!user) {
     return c.json({ error: "Unauthorized - Authentication required" }, 401);

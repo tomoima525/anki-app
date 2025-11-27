@@ -59,7 +59,7 @@ export async function createUserFromGoogle(
     throw new Error(`Failed to create user: ${response.statusText}`)
   }
 
-  const data = await response.json<{ user: User; created: boolean }>()
+  const data = (await response.json()) as { user: User; created: boolean }
   return data.user
 }
 
@@ -105,7 +105,7 @@ export async function getCurrentUser(): Promise<User | null> {
       throw new Error(`Failed to get current user: ${response.statusText}`)
     }
 
-    const data = await response.json<{ user: User }>()
+    const data = (await response.json()) as { user: User }
     return data.user
   } catch (error) {
     console.error('Get current user error:', error)
@@ -128,7 +128,7 @@ export async function findUserById(id: string): Promise<User | null> {
       return null
     }
 
-    const data = await response.json<{ user: User }>()
+    const data = (await response.json()) as { user: User }
     return data.user
   } catch (error) {
     console.error('Find user by ID error:', error)
@@ -171,7 +171,7 @@ export async function updateUser(updates: { name?: string; picture?: string }): 
     throw new Error(`Failed to update user: ${response.statusText}`)
   }
 
-  const data = await response.json<{ user: User }>()
+  const data = (await response.json()) as { user: User }
   return data.user
 }
 

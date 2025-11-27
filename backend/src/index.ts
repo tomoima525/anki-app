@@ -21,17 +21,31 @@ import {
   type UserContext,
 } from "./middleware/auth";
 import usersRouter from "./routes/users";
+import { fetchMarkdownFromGitHub } from "./lib/github";
+import {
+  parseQuestionsInChunks,
+  hasPrewrittenAnswersWithAI,
+  parsePrewrittenQA,
+} from "./lib/openai-parser";
+import { batchUpsertQuestions } from "./lib/questions";
+import { getAllSources } from "./config/sources";
 
 export interface Env {
   DB: D1Database;
   APP_USERNAME: string;
   APP_PASSWORD_HASH: string;
   SESSION_SECRET: string;
+  OPENAI_API_KEY: string;
+  OPENAI_MODEL?: string;
+  GITHUB_TOKEN?: string;
 }
 
 type Bindings = {
   DB: D1Database;
   SESSION_SECRET: string;
+  OPENAI_API_KEY: string;
+  OPENAI_MODEL?: string;
+  GITHUB_TOKEN?: string;
 };
 
 type Variables = {
@@ -670,6 +684,92 @@ app.get("/api/dashboard/heatmap", authMiddleware, async (c) => {
   } catch (error) {
     console.error("Get heatmap data error:", error);
     return c.json({ error: "Failed to get heatmap data" }, 500);
+  }
+});
+
+// GitHub Sync endpoint
+
+/**
+ * POST /api/sync/github
+ * Sync questions from configured GitHub sources
+ * Requires admin access
+ */
+app.post("/api/sync/github", authMiddleware, adminMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const githubToken = c.env.GITHUB_TOKEN;
+    const apiKey = c.env.OPENAI_API_KEY;
+    const model = c.env.OPENAI_MODEL || "gpt-4o-mini";
+    const user = c.get("user");
+
+    if (!apiKey) {
+      return c.json({ error: "OpenAI API key not configured" }, 500);
+    }
+
+    if (!githubToken) {
+      return c.json({ error: "GitHub token not configured" }, 500);
+    }
+
+    // Get all configured sources
+    const sources = getAllSources();
+
+    if (sources.length === 0) {
+      return c.json({ error: "No sources configured" }, 400);
+    }
+
+    const results = [];
+
+    for (const source of sources) {
+      try {
+        // 1. Fetch markdown
+        const { content } = await fetchMarkdownFromGitHub(
+          source.url,
+          githubToken
+        );
+
+        // 2. Check if document has pre-written answers using AI
+        const hasAnswers = await hasPrewrittenAnswersWithAI(
+          content,
+          apiKey,
+          model
+        );
+        let questions;
+
+        if (hasAnswers) {
+          // Parse Q&A directly from markdown
+          questions = parsePrewrittenQA(content);
+        } else {
+          // Parse with OpenAI
+          questions = await parseQuestionsInChunks(content, apiKey, model);
+        }
+
+        // 3. Upsert to database
+        const upsertResult = await batchUpsertQuestions(
+          db,
+          questions,
+          source.url
+        );
+
+        results.push({
+          source: source.name,
+          ...upsertResult,
+        });
+      } catch (error) {
+        console.error(`Error syncing ${source.name}:`, error);
+        results.push({
+          source: source.name,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return c.json({
+      success: true,
+      results,
+    });
+  } catch (error) {
+    console.error("GitHub sync error:", error);
+    return c.json({ error: "Failed to sync questions from GitHub" }, 500);
   }
 });
 
