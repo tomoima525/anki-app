@@ -3,10 +3,21 @@
  * Verifies JWT verification and session handling
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
+import { createTestTokens } from "./helpers";
 
 describe("Authentication Tests", () => {
   const API_URL = process.env.TEST_API_URL || "http://localhost:8787";
+  let validToken: string;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    const tokens = await createTestTokens();
+    validToken = tokens.userToken;
+    adminToken = tokens.adminToken;
+
+    console.log("✓ Test tokens created");
+  });
 
   describe("JWT Token Verification", () => {
     it("should reject requests without authentication", async () => {

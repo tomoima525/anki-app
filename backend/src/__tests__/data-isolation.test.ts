@@ -3,7 +3,8 @@
  * Verifies that user data is properly isolated
  */
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createTestTokens } from "./helpers";
 
 describe("Data Isolation Tests", () => {
   const API_URL = process.env.TEST_API_URL || "http://localhost:8787";
@@ -11,11 +12,26 @@ describe("Data Isolation Tests", () => {
   let user2Token: string;
   let user1Id: string;
   let user2Id: string;
-  let sharedQuestionId: string;
+  const sharedQuestionId: string = "seed1";
 
   beforeAll(async () => {
-    // TODO: Setup test users and shared question
-    console.log("Setting up test data...");
+    // Create test tokens
+    const tokens = await createTestTokens();
+    user1Token = tokens.userToken;
+    user2Token = tokens.user2Token;
+    user1Id = tokens.regularUserId;
+    user2Id = tokens.user2Id;
+
+    console.log("✓ Test tokens created");
+    console.log(`  User 1 ID: ${user1Id}`);
+    console.log(`  User 2 ID: ${user2Id}`);
+
+    // Note: In a real test environment, you would also create the users
+    // and a shared question in the database here
+  });
+
+  afterAll(async () => {
+    console.log("✓ Tests completed");
   });
 
   describe("Answer Logs Isolation", () => {
