@@ -211,6 +211,9 @@ export default function QuestionsPage() {
             <h1 className="text-3xl font-bold">Question Management</h1>
             <nav className="flex gap-2">
               <Button asChild variant="link">
+                <a href="/dashboard">Dashboard</a>
+              </Button>
+              <Button asChild variant="link">
                 <a href="/study">Study</a>
               </Button>
               <Button asChild variant="link">
