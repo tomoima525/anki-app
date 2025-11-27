@@ -12,4 +12,6 @@ binding = "ASSETS"
 SESSION_MAX_AGE = "604800"
 SESSION_COOKIE_NAME = "anki_session"
 NEXT_PUBLIC_BACKEND_URL= "https://anki-interview-app.tomoima525.workers.dev"
+NEXT_PUBLIC_GOOGLE_CLIENT_ID="494913230082-44coq05pq6cn0hs5sdshkksm48lbqtjb.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID="494913230082-44coq05pq6cn0hs5sdshkksm48lbqtjb.apps.googleusercontent.com"
 
