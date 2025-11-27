@@ -20,6 +20,7 @@ import {
   adminMiddleware,
   type UserContext,
 } from "./middleware/auth";
+import usersRouter from "./routes/users";
 
 export interface Env {
   DB: D1Database;
@@ -61,6 +62,9 @@ app.use(
 app.get("/health", (c) => {
   return c.json({ status: "ok" });
 });
+
+// Mount user routes
+app.route("/api/users", usersRouter);
 
 // Study endpoints
 
