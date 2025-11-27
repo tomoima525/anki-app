@@ -104,11 +104,13 @@ This frontend is deployed to Cloudflare Workers using [OpenNext.js](https://open
 ### Prerequisites
 
 1. Install Wrangler CLI globally (if not already installed):
+
 ```bash
 pnpm add -g wrangler
 ```
 
 2. Authenticate with Cloudflare:
+
 ```bash
 wrangler login
 ```
@@ -130,6 +132,7 @@ pnpm preview
 ```
 
 The build process will:
+
 1. Build your Next.js application
 2. Adapt it for Cloudflare Workers using OpenNext.js
 3. Generate the worker bundle in `.open-next/` directory
@@ -145,7 +148,11 @@ The deployment is configured via `wrangler.toml`:
 
 ### Environment Variables
 
-Set secrets in Cloudflare Workers:
+**Yes, you can use `process.env` in your code!** OpenNext.js with Cloudflare adapter automatically polyfills `process.env` to work with Cloudflare Workers environment variables. Your existing code using `process.env.VARIABLE_NAME` will work without any changes.
+
+#### Setting Environment Variables
+
+**Secrets** (sensitive values like API keys) should be set via Wrangler CLI:
 
 ```bash
 wrangler secret put GOOGLE_CLIENT_ID
@@ -153,7 +160,9 @@ wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put SESSION_SECRET
 ```
 
-Public environment variables can be set in `wrangler.toml` under `[vars]`:
+These will be available in your code as `process.env.GOOGLE_CLIENT_ID`, `process.env.GOOGLE_CLIENT_SECRET`, and `process.env.SESSION_SECRET`.
+
+**Public variables** (non-sensitive configuration) can be set in `wrangler.toml` under `[vars]`:
 
 ```toml
 [vars]
@@ -162,6 +171,15 @@ SESSION_COOKIE_NAME = "anki_session"
 SESSION_MAX_AGE = "604800"
 NEXT_PUBLIC_BACKEND_URL = "https://your-backend.workers.dev"
 ```
+
+These will also be available via `process.env` (e.g., `process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID`).
+
+#### How It Works
+
+- OpenNext.js automatically maps Cloudflare Workers environment variables to `process.env`
+- The `nodejs_compat` flag in `wrangler.toml` enables Node.js compatibility
+- No code changes needed - your existing `process.env` usage will work as-is
+- Variables are available in both server-side code (API routes, server components) and client-side code (for `NEXT_PUBLIC_*` variables)
 
 ### OpenNext.js Configuration
 
