@@ -5,15 +5,15 @@ SELECT name FROM sqlite_master WHERE type='table';
 SELECT name FROM sqlite_master WHERE type='index';
 
 -- Test insert
-INSERT INTO questions (id, question_text, answer_text, source)
-VALUES ('test123', 'What is TypeScript?', 'A typed superset of JavaScript', 'test.md');
+INSERT INTO questions (id, question_text, answer_text, source, created_by)
+VALUES ('test123', 'What is TypeScript?', 'A typed superset of JavaScript', 'test.md', '1');
 
 -- Test select
 SELECT * FROM questions;
 
 -- Test answer log
-INSERT INTO answer_logs (question_id, difficulty)
-VALUES ('test123', 'easy');
+INSERT INTO answer_logs (question_id, difficulty, user_id)
+VALUES ('test123', 'easy', '1');
 
 -- Verify foreign key
 SELECT q.question_text, al.difficulty, al.answered_at

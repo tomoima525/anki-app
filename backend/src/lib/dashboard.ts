@@ -89,10 +89,11 @@ export interface HeatmapDataPoint {
 }
 
 /**
- * Get daily activity statistics for a specific date
+ * Get daily activity statistics for a specific date and user
  */
 export async function getDailyStats(
   db: D1Database,
+  userId: string,
   date?: string
 ): Promise<DailyStats> {
   const targetDate = date || new Date().toISOString().split("T")[0];
@@ -108,9 +109,9 @@ export async function getDailyStats(
         MIN(answered_at) as first_answer_at,
         MAX(answered_at) as last_answer_at
       FROM answer_logs
-      WHERE DATE(answered_at) = ?`
+      WHERE user_id = ? AND DATE(answered_at) = ?`
     )
-    .bind(targetDate)
+    .bind(userId, targetDate)
     .first<DailyStats>();
 
   return (
@@ -127,10 +128,11 @@ export async function getDailyStats(
 }
 
 /**
- * Get activity trend data for a date range
+ * Get activity trend data for a date range and user
  */
 export async function getActivityTrend(
   db: D1Database,
+  userId: string,
   days: number = 7
 ): Promise<ActivityDataPoint[]> {
   const result = await db
@@ -143,67 +145,81 @@ export async function getActivityTrend(
         SUM(CASE WHEN difficulty = 'medium' THEN 1 ELSE 0 END) as medium_count,
         SUM(CASE WHEN difficulty = 'hard' THEN 1 ELSE 0 END) as hard_count
       FROM answer_logs
-      WHERE answered_at >= DATE('now', '-' || ? || ' days')
+      WHERE user_id = ? AND answered_at >= DATE('now', '-' || ? || ' days')
       GROUP BY DATE(answered_at)
       ORDER BY date ASC`
     )
-    .bind(days)
+    .bind(userId, days)
     .all<ActivityDataPoint>();
 
   return result.results || [];
 }
 
 /**
- * Get mastery progress categorization
+ * Get mastery progress categorization for a specific user
  */
 export async function getMasteryProgress(
-  db: D1Database
+  db: D1Database,
+  userId: string
 ): Promise<MasteryProgress> {
-  // Get total questions
+  // Get total questions (shared across all users)
   const totalResult = await db
     .prepare("SELECT COUNT(*) as count FROM questions")
     .first<{ count: number }>();
   const totalQuestions = totalResult?.count || 0;
 
-  // Get questions with 3+ consecutive easy answers (mastered)
-  // We'll check the last 3 answers for each question
+  // Get questions with 3+ consecutive easy answers (mastered) by this user
+  // We'll check the last 3 answers for each question for this specific user
   const masteredResult = await db
     .prepare(
       `SELECT COUNT(*) as count
-      FROM questions q
-      WHERE (
-        SELECT COUNT(*)
-        FROM (
-          SELECT difficulty
-          FROM answer_logs
-          WHERE question_id = q.id
-          ORDER BY answered_at DESC
-          LIMIT 3
-        ) recent
-        WHERE difficulty = 'easy'
-      ) = 3
-      AND q.answer_count >= 3`
+      FROM user_question_stats uqs
+      WHERE uqs.user_id = ?
+        AND (
+          SELECT COUNT(*)
+          FROM (
+            SELECT difficulty
+            FROM answer_logs
+            WHERE question_id = uqs.question_id AND user_id = ?
+            ORDER BY answered_at DESC
+            LIMIT 3
+          ) recent
+          WHERE difficulty = 'easy'
+        ) = 3
+        AND uqs.answer_count >= 3`
     )
+    .bind(userId, userId)
     .first<{ count: number }>();
   const masteredCount = masteredResult?.count || 0;
 
-  // Questions marked hard in last attempt
+  // Questions marked hard in last attempt by this user
   const needsReviewResult = await db
     .prepare(
-      "SELECT COUNT(*) as count FROM questions WHERE last_difficulty = 'hard' AND answer_count > 0"
+      `SELECT COUNT(*) as count
+       FROM user_question_stats
+       WHERE user_id = ? AND last_difficulty = 'hard' AND answer_count > 0`
     )
+    .bind(userId)
     .first<{ count: number }>();
   const needsReviewCount = needsReviewResult?.count || 0;
 
-  // Questions never attempted
-  const notStartedResult = await db
-    .prepare("SELECT COUNT(*) as count FROM questions WHERE answer_count = 0")
+  // Questions this user has answered at least once
+  const answeredResult = await db
+    .prepare(
+      `SELECT COUNT(*) as count
+       FROM user_question_stats
+       WHERE user_id = ?`
+    )
+    .bind(userId)
     .first<{ count: number }>();
-  const notStartedCount = notStartedResult?.count || 0;
+  const answeredCount = answeredResult?.count || 0;
+
+  // Questions never attempted by this user
+  const notStartedCount = totalQuestions - answeredCount;
 
   // In progress = answered but not mastered or needs_review
   const inProgressCount =
-    totalQuestions - masteredCount - needsReviewCount - notStartedCount;
+    answeredCount - masteredCount - needsReviewCount;
 
   return {
     total_questions: totalQuestions,
@@ -227,16 +243,18 @@ export async function getMasteryProgress(
 }
 
 /**
- * Calculate study streak
+ * Calculate study streak for a specific user
  */
-export async function getStudyStreak(db: D1Database): Promise<StudyStreak> {
-  // Get all unique study dates
+export async function getStudyStreak(db: D1Database, userId: string): Promise<StudyStreak> {
+  // Get all unique study dates for this user
   const datesResult = await db
     .prepare(
       `SELECT DISTINCT DATE(answered_at) as study_date
       FROM answer_logs
+      WHERE user_id = ?
       ORDER BY study_date DESC`
     )
+    .bind(userId)
     .all<{ study_date: string }>();
 
   const studyDates = (datesResult.results || []).map((r) => r.study_date);
@@ -280,11 +298,12 @@ export async function getStudyStreak(db: D1Database): Promise<StudyStreak> {
   }
   longestStreak = Math.max(longestStreak, tempStreak);
 
-  // Get last study time
+  // Get last study time for this user
   const lastStudyResult = await db
     .prepare(
-      "SELECT MAX(answered_at) as last_study FROM answer_logs"
+      "SELECT MAX(answered_at) as last_study FROM answer_logs WHERE user_id = ?"
     )
+    .bind(userId)
     .first<{ last_study: string | null }>();
 
   const lastStudy = lastStudyResult?.last_study;
@@ -314,49 +333,53 @@ export async function getStudyStreak(db: D1Database): Promise<StudyStreak> {
 }
 
 /**
- * Get questions that need review
+ * Get questions that need review for a specific user
  */
 export async function getReviewQueue(
   db: D1Database,
+  userId: string,
   limit: number = 10,
   daysThreshold: number = 7
 ): Promise<ReviewQuestion[]> {
   const result = await db
     .prepare(
       `SELECT
-        id,
-        question_text,
-        last_answered_at,
-        last_difficulty,
-        answer_count,
-        CAST(JULIANDAY('now') - JULIANDAY(last_answered_at) AS INTEGER) as days_since_last_answer,
+        q.id,
+        q.question_text,
+        uqs.last_answered_at,
+        uqs.last_difficulty,
+        uqs.answer_count,
+        CAST(JULIANDAY('now') - JULIANDAY(uqs.last_answered_at) AS INTEGER) as days_since_last_answer,
         CASE
-          WHEN last_difficulty = 'hard' THEN 'last_marked_hard'
-          WHEN JULIANDAY('now') - JULIANDAY(last_answered_at) > ? THEN 'not_reviewed_recently'
+          WHEN uqs.last_difficulty = 'hard' THEN 'last_marked_hard'
+          WHEN JULIANDAY('now') - JULIANDAY(uqs.last_answered_at) > ? THEN 'not_reviewed_recently'
           ELSE 'other'
         END as reason
-      FROM questions
-      WHERE answer_count > 0
+      FROM user_question_stats uqs
+      JOIN questions q ON q.id = uqs.question_id
+      WHERE uqs.user_id = ?
+        AND uqs.answer_count > 0
         AND (
-          last_difficulty = 'hard' OR
-          JULIANDAY('now') - JULIANDAY(last_answered_at) > ?
+          uqs.last_difficulty = 'hard' OR
+          JULIANDAY('now') - JULIANDAY(uqs.last_answered_at) > ?
         )
       ORDER BY
-        CASE WHEN last_difficulty = 'hard' THEN 0 ELSE 1 END,
+        CASE WHEN uqs.last_difficulty = 'hard' THEN 0 ELSE 1 END,
         days_since_last_answer DESC
       LIMIT ?`
     )
-    .bind(daysThreshold, daysThreshold, limit)
+    .bind(daysThreshold, userId, daysThreshold, limit)
     .all<ReviewQuestion>();
 
   return result.results || [];
 }
 
 /**
- * Get heatmap data for activity visualization
+ * Get heatmap data for activity visualization for a specific user
  */
 export async function getHeatmapData(
   db: D1Database,
+  userId: string,
   days: number = 30
 ): Promise<HeatmapDataPoint[]> {
   const result = await db
@@ -366,11 +389,11 @@ export async function getHeatmapData(
         COUNT(*) as question_count,
         COUNT(DISTINCT question_id) as unique_questions
       FROM answer_logs
-      WHERE answered_at >= DATE('now', '-' || ? || ' days')
+      WHERE user_id = ? AND answered_at >= DATE('now', '-' || ? || ' days')
       GROUP BY DATE(answered_at)
       ORDER BY date ASC`
     )
-    .bind(days)
+    .bind(userId, days)
     .all<{ date: string; question_count: number; unique_questions: number }>();
 
   const data = result.results || [];
@@ -394,15 +417,16 @@ export async function getHeatmapData(
 }
 
 /**
- * Calculate average questions per day
+ * Calculate average questions per day for a specific user
  */
-export async function getAverages(db: D1Database): Promise<{
+export async function getAverages(db: D1Database, userId: string): Promise<{
   daily_avg: number;
   weekly_avg: number;
 }> {
-  // Get first answer date
+  // Get first answer date for this user
   const firstAnswerResult = await db
-    .prepare("SELECT MIN(answered_at) as first_answer FROM answer_logs")
+    .prepare("SELECT MIN(answered_at) as first_answer FROM answer_logs WHERE user_id = ?")
+    .bind(userId)
     .first<{ first_answer: string | null }>();
 
   const firstAnswer = firstAnswerResult?.first_answer;
@@ -418,9 +442,10 @@ export async function getAverages(db: D1Database): Promise<{
     Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24))
   );
 
-  // Get total answers
+  // Get total answers for this user
   const totalResult = await db
-    .prepare("SELECT COUNT(*) as count FROM answer_logs")
+    .prepare("SELECT COUNT(*) as count FROM answer_logs WHERE user_id = ?")
+    .bind(userId)
     .first<{ count: number }>();
   const totalAnswers = totalResult?.count || 0;
 
@@ -434,10 +459,11 @@ export async function getAverages(db: D1Database): Promise<{
 }
 
 /**
- * Get yesterday's stats for comparison
+ * Get yesterday's stats for comparison for a specific user
  */
 export async function getYesterdayStats(
-  db: D1Database
+  db: D1Database,
+  userId: string
 ): Promise<{ total_answers: number }> {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -447,9 +473,9 @@ export async function getYesterdayStats(
     .prepare(
       `SELECT COUNT(*) as total_answers
       FROM answer_logs
-      WHERE DATE(answered_at) = ?`
+      WHERE user_id = ? AND DATE(answered_at) = ?`
     )
-    .bind(yesterdayStr)
+    .bind(userId, yesterdayStr)
     .first<{ total_answers: number }>();
 
   return result || { total_answers: 0 };

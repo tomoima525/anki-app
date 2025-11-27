@@ -15,6 +15,11 @@ import {
   getAverages,
   getYesterdayStats,
 } from "./lib/dashboard";
+import {
+  authMiddleware,
+  adminMiddleware,
+  type UserContext,
+} from "./middleware/auth";
 
 export interface Env {
   DB: D1Database;
@@ -25,9 +30,14 @@ export interface Env {
 
 type Bindings = {
   DB: D1Database;
+  SESSION_SECRET: string;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+type Variables = {
+  user: UserContext;
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Enable CORS for frontend
 app.use(
@@ -57,8 +67,9 @@ app.get("/health", (c) => {
 /**
  * POST /api/study/next
  * Get a random question (without answer)
+ * Requires authentication
  */
-app.post("/api/study/next", async (c) => {
+app.post("/api/study/next", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
 
@@ -94,8 +105,9 @@ app.post("/api/study/next", async (c) => {
 /**
  * GET /api/study/:id
  * Get a specific question with answer
+ * Requires authentication
  */
-app.get("/api/study/:id", async (c) => {
+app.get("/api/study/:id", authMiddleware, async (c) => {
   try {
     const id = c.req.param("id");
     const db = c.env.DB;
@@ -133,12 +145,14 @@ app.get("/api/study/:id", async (c) => {
 /**
  * POST /api/study/:id/answer
  * Submit answer with difficulty rating
+ * Requires authentication
  */
-app.post("/api/study/:id/answer", async (c) => {
+app.post("/api/study/:id/answer", authMiddleware, async (c) => {
   try {
     const id = c.req.param("id");
     const body = await c.req.json<{ difficulty: string }>();
     const { difficulty } = body;
+    const user = c.get("user");
 
     // Validate difficulty
     if (!["easy", "medium", "hard"].includes(difficulty)) {
@@ -160,24 +174,25 @@ app.post("/api/study/:id/answer", async (c) => {
 
     // Use D1 batch for atomic transaction
     await db.batch([
-      // Insert into answer_logs
+      // Insert into answer_logs with user_id
       db
         .prepare(
-          `INSERT INTO answer_logs (question_id, difficulty, answered_at)
-         VALUES (?, ?, ?)`
+          `INSERT INTO answer_logs (user_id, question_id, difficulty, answered_at)
+         VALUES (?, ?, ?, ?)`
         )
-        .bind(id, difficulty, now),
+        .bind(user.userId, id, difficulty, now),
 
-      // Update question aggregates
+      // Upsert user_question_stats (per-user statistics)
       db
         .prepare(
-          `UPDATE questions
-         SET last_answered_at = ?,
-             last_difficulty = ?,
-             answer_count = answer_count + 1
-         WHERE id = ?`
+          `INSERT INTO user_question_stats (user_id, question_id, last_answered_at, last_difficulty, answer_count)
+         VALUES (?, ?, ?, ?, 1)
+         ON CONFLICT(user_id, question_id) DO UPDATE SET
+           last_answered_at = excluded.last_answered_at,
+           last_difficulty = excluded.last_difficulty,
+           answer_count = answer_count + 1`
         )
-        .bind(now, difficulty, id),
+        .bind(user.userId, id, now, difficulty),
     ]);
 
     return c.json({
@@ -196,32 +211,40 @@ app.post("/api/study/:id/answer", async (c) => {
  * GET /api/questions/stats
  * Get statistics about questions and answers
  * Note: This route must come before /api/questions/:id to avoid routing conflicts
+ * Requires authentication
  */
-app.get("/api/questions/stats", async (c) => {
+app.get("/api/questions/stats", authMiddleware, async (c) => {
+  const user = c.get("user");
   try {
     const db = c.env.DB;
 
-    // Total questions
+    // Total questions (shared across all users)
     const totalResult = await db
       .prepare("SELECT COUNT(*) as count FROM questions")
       .first<{ count: number }>();
 
-    // Answered questions
+    // Answered questions by this user
     const answeredResult = await db
-      .prepare("SELECT COUNT(*) as count FROM questions WHERE answer_count > 0")
+      .prepare(
+        `SELECT COUNT(DISTINCT question_id) as count
+         FROM user_question_stats
+         WHERE user_id = ?`
+      )
+      .bind(user.userId)
       .first<{ count: number }>();
 
-    // Difficulty distribution
+    // Difficulty distribution for this user
     const difficultyResult = await db
       .prepare(
         `SELECT last_difficulty, COUNT(*) as count
-         FROM questions
-         WHERE last_difficulty IS NOT NULL
+         FROM user_question_stats
+         WHERE user_id = ? AND last_difficulty IS NOT NULL
          GROUP BY last_difficulty`
       )
+      .bind(user.userId)
       .all<{ last_difficulty: string; count: number }>();
 
-    // Recent activity (last 7 days)
+    // Recent activity (last 7 days) for this user
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -229,9 +252,9 @@ app.get("/api/questions/stats", async (c) => {
       .prepare(
         `SELECT COUNT(*) as count
          FROM answer_logs
-         WHERE answered_at > ?`
+         WHERE user_id = ? AND answered_at > ?`
       )
-      .bind(sevenDaysAgo.toISOString())
+      .bind(user.userId, sevenDaysAgo.toISOString())
       .first<{ count: number }>();
 
     // Build difficulty stats
@@ -264,11 +287,13 @@ app.get("/api/questions/stats", async (c) => {
 /**
  * GET /api/questions/:id
  * Get question detail with answer history
+ * Requires authentication
  */
-app.get("/api/questions/:id", async (c) => {
+app.get("/api/questions/:id", authMiddleware, async (c) => {
   try {
     const id = c.req.param("id");
     const db = c.env.DB;
+    const user = c.get("user");
 
     // Get question
     const question = await db
@@ -280,15 +305,15 @@ app.get("/api/questions/:id", async (c) => {
       return c.json({ error: "Question not found" }, 404);
     }
 
-    // Get recent answer logs
+    // Get recent answer logs for this user
     const logs = await db
       .prepare(
         `SELECT * FROM answer_logs
-         WHERE question_id = ?
+         WHERE question_id = ? AND user_id = ?
          ORDER BY answered_at DESC
          LIMIT 20`
       )
-      .bind(id)
+      .bind(id, user.userId)
       .all();
 
     return c.json({
@@ -304,8 +329,9 @@ app.get("/api/questions/:id", async (c) => {
 /**
  * DELETE /api/questions/:id
  * Delete a question and its associated answer logs
+ * Requires admin access
  */
-app.delete("/api/questions/:id", async (c) => {
+app.delete("/api/questions/:id", authMiddleware, adminMiddleware, async (c) => {
   try {
     const id = c.req.param("id");
     const db = c.env.DB;
@@ -320,19 +346,26 @@ app.delete("/api/questions/:id", async (c) => {
       return c.json({ error: "Question not found", success: false }, 404);
     }
 
-    // Delete answer logs first, then question (order matters due to foreign key constraints)
+    // Delete related data first, then question (order matters due to foreign key constraints)
     const deleteFromAnswerLogs = db
       .prepare(`DELETE FROM answer_logs WHERE question_id = ?`)
+      .bind(id);
+    const deleteFromUserQuestionStats = db
+      .prepare(`DELETE FROM user_question_stats WHERE question_id = ?`)
       .bind(id);
     const deleteFromQuestions = db
       .prepare(`DELETE FROM questions WHERE id = ?`)
       .bind(id);
 
-    // Use batch for atomic deletion - both succeed or both fail
-    const results = await db.batch([deleteFromAnswerLogs, deleteFromQuestions]);
+    // Use batch for atomic deletion - all succeed or all fail
+    const results = await db.batch([
+      deleteFromAnswerLogs,
+      deleteFromUserQuestionStats,
+      deleteFromQuestions,
+    ]);
 
-    // Verify deletion succeeded
-    const questionDeleteResult = results[1];
+    // Verify deletion succeeded (questions deletion is at index 2)
+    const questionDeleteResult = results[2];
     if (questionDeleteResult.meta.changes === 0) {
       return c.json({ error: "Failed to delete question", success: false }, 500);
     }
@@ -353,8 +386,9 @@ app.delete("/api/questions/:id", async (c) => {
 /**
  * GET /api/questions
  * List questions with filters, search, and sorting
+ * Requires authentication
  */
-app.get("/api/questions", async (c) => {
+app.get("/api/questions", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
 
@@ -448,15 +482,17 @@ app.get("/api/questions", async (c) => {
 /**
  * GET /api/dashboard/daily-stats
  * Get comprehensive daily statistics
+ * Requires authentication - returns user-specific stats
  */
-app.get("/api/dashboard/daily-stats", async (c) => {
+app.get("/api/dashboard/daily-stats", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
+    const user = c.get("user");
     const date = c.req.query("date"); // Optional ISO date string
 
-    const dailyStats = await getDailyStats(db, date);
-    const averages = await getAverages(db);
-    const yesterdayStats = await getYesterdayStats(db);
+    const dailyStats = await getDailyStats(db, user.userId, date);
+    const averages = await getAverages(db, user.userId);
+    const yesterdayStats = await getYesterdayStats(db, user.userId);
 
     // Calculate estimated study time (rough estimate based on timestamps)
     let estimatedStudyTimeMinutes = 0;
@@ -505,10 +541,12 @@ app.get("/api/dashboard/daily-stats", async (c) => {
 /**
  * GET /api/dashboard/activity-trend
  * Get activity data for time-series visualization
+ * Requires authentication - returns user-specific activity
  */
-app.get("/api/dashboard/activity-trend", async (c) => {
+app.get("/api/dashboard/activity-trend", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
+    const user = c.get("user");
     const range = c.req.query("range") || "7d";
 
     // Parse range to days
@@ -516,7 +554,7 @@ app.get("/api/dashboard/activity-trend", async (c) => {
     if (range === "30d") days = 30;
     else if (range === "90d") days = 90;
 
-    const data = await getActivityTrend(db, days);
+    const data = await getActivityTrend(db, user.userId, days);
 
     return c.json({
       range,
@@ -531,11 +569,13 @@ app.get("/api/dashboard/activity-trend", async (c) => {
 /**
  * GET /api/dashboard/mastery-progress
  * Get mastery categorization of all questions
+ * Requires authentication - returns user-specific progress
  */
-app.get("/api/dashboard/mastery-progress", async (c) => {
+app.get("/api/dashboard/mastery-progress", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
-    const progress = await getMasteryProgress(db);
+    const user = c.get("user");
+    const progress = await getMasteryProgress(db, user.userId);
 
     return c.json(progress);
   } catch (error) {
@@ -547,11 +587,13 @@ app.get("/api/dashboard/mastery-progress", async (c) => {
 /**
  * GET /api/dashboard/study-streak
  * Calculate current and historical study streaks
+ * Requires authentication - returns user-specific streak
  */
-app.get("/api/dashboard/study-streak", async (c) => {
+app.get("/api/dashboard/study-streak", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
-    const streak = await getStudyStreak(db);
+    const user = c.get("user");
+    const streak = await getStudyStreak(db, user.userId);
 
     return c.json(streak);
   } catch (error) {
@@ -563,27 +605,30 @@ app.get("/api/dashboard/study-streak", async (c) => {
 /**
  * GET /api/dashboard/review-queue
  * Get questions that need review
+ * Requires authentication - returns user-specific review queue
  */
-app.get("/api/dashboard/review-queue", async (c) => {
+app.get("/api/dashboard/review-queue", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
+    const user = c.get("user");
     const limit = parseInt(c.req.query("limit") || "10", 10);
     const daysThreshold = parseInt(c.req.query("days_threshold") || "7", 10);
 
-    const questions = await getReviewQueue(db, limit, daysThreshold);
+    const questions = await getReviewQueue(db, user.userId, limit, daysThreshold);
 
-    // Get total count of questions needing review
+    // Get total count of questions needing review for this user
     const totalCountResult = await db
       .prepare(
         `SELECT COUNT(*) as count
-        FROM questions
-        WHERE answer_count > 0
+        FROM user_question_stats
+        WHERE user_id = ?
+          AND answer_count > 0
           AND (
             last_difficulty = 'hard' OR
             JULIANDAY('now') - JULIANDAY(last_answered_at) > ?
           )`
       )
-      .bind(daysThreshold)
+      .bind(user.userId, daysThreshold)
       .first<{ count: number }>();
 
     return c.json({
@@ -599,10 +644,12 @@ app.get("/api/dashboard/review-queue", async (c) => {
 /**
  * GET /api/dashboard/heatmap
  * Get activity heatmap data
+ * Requires authentication - returns user-specific heatmap
  */
-app.get("/api/dashboard/heatmap", async (c) => {
+app.get("/api/dashboard/heatmap", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
+    const user = c.get("user");
     const range = c.req.query("range") || "30d";
 
     // Parse range to days
@@ -610,7 +657,7 @@ app.get("/api/dashboard/heatmap", async (c) => {
     if (range === "90d") days = 90;
     else if (range === "1y") days = 365;
 
-    const data = await getHeatmapData(db, days);
+    const data = await getHeatmapData(db, user.userId, days);
 
     return c.json({
       range,
