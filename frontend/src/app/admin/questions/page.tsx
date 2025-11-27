@@ -17,7 +17,7 @@ export default function AdminQuestionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState('recent')
+  const [sortBy, setSortBy] = useState('newest')
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -123,8 +123,9 @@ export default function AdminQuestionsPage() {
             onChange={(e) => setSortBy(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="recent">Most Recent</option>
-            <option value="oldest">Oldest First</option>
+            <option value="newest">Newest Questions</option>
+            <option value="recent">Recently Answered</option>
+            <option value="oldest">Oldest Answered</option>
             <option value="most_answered">Most Answered</option>
             <option value="least_answered">Least Answered</option>
           </select>

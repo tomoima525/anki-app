@@ -404,51 +404,75 @@ app.delete("/api/questions/:id", authMiddleware, adminMiddleware, async (c) => {
 /**
  * GET /api/questions
  * List questions with filters, search, and sorting
+ * Shows shared question pool with optional user-specific stats
  * Requires authentication
  */
 app.get("/api/questions", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
+    const user = c.get("user");
 
     // Parse query parameters
     const difficulty = c.req.query("difficulty"); // 'easy' | 'medium' | 'hard'
-    const sort = c.req.query("sort") || "recent";
+    const sort = c.req.query("sort") || "newest";
     const search = c.req.query("search");
     const limit = parseInt(c.req.query("limit") || "50", 10);
     const offset = parseInt(c.req.query("offset") || "0", 10);
 
-    // Build query
-    let query = "SELECT * FROM questions WHERE 1=1";
-    const bindings: any[] = [];
+    // Build query - join with user_question_stats to get user-specific data
+    let query = `
+      SELECT
+        q.*,
+        uqs.last_answered_at,
+        uqs.last_difficulty,
+        uqs.answer_count
+      FROM questions q
+      LEFT JOIN user_question_stats uqs
+        ON q.id = uqs.question_id AND uqs.user_id = ?
+      WHERE 1=1
+    `;
+    const bindings: any[] = [user.userId];
 
-    // Filter by difficulty
+    // Filter by difficulty (user's last difficulty)
     if (difficulty && ["easy", "medium", "hard"].includes(difficulty)) {
-      query += " AND last_difficulty = ?";
+      query += " AND uqs.last_difficulty = ?";
       bindings.push(difficulty);
     }
 
     // Search in question text
     if (search) {
-      query += " AND question_text LIKE ?";
+      query += " AND q.question_text LIKE ?";
       bindings.push(`%${search}%`);
     }
 
     // Sort
     switch (sort) {
       case "recent":
-        query += " ORDER BY last_answered_at DESC NULLS LAST";
+        // Recently answered by this user
+        query += " ORDER BY uqs.last_answered_at DESC NULLS LAST";
         break;
       case "oldest":
-        query += " ORDER BY last_answered_at ASC NULLS FIRST";
+        // Oldest answered by this user
+        query += " ORDER BY uqs.last_answered_at ASC NULLS FIRST";
         break;
       case "most_answered":
-        query += " ORDER BY answer_count DESC";
+        // Most answered by this user
+        query += " ORDER BY COALESCE(uqs.answer_count, 0) DESC";
         break;
       case "least_answered":
-        query += " ORDER BY answer_count ASC";
+        // Least answered by this user (including never answered)
+        query += " ORDER BY COALESCE(uqs.answer_count, 0) ASC";
+        break;
+      case "newest":
+        // Newest questions added to pool
+        query += " ORDER BY q.created_at DESC";
+        break;
+      case "oldest_created":
+        // Oldest questions in pool
+        query += " ORDER BY q.created_at ASC";
         break;
       default:
-        query += " ORDER BY created_at DESC";
+        query += " ORDER BY q.created_at DESC";
     }
 
     // Pagination
@@ -462,16 +486,22 @@ app.get("/api/questions", authMiddleware, async (c) => {
       .all();
 
     // Get total count for pagination
-    let countQuery = "SELECT COUNT(*) as count FROM questions WHERE 1=1";
-    const countBindings: any[] = [];
+    let countQuery = `
+      SELECT COUNT(*) as count
+      FROM questions q
+      LEFT JOIN user_question_stats uqs
+        ON q.id = uqs.question_id AND uqs.user_id = ?
+      WHERE 1=1
+    `;
+    const countBindings: any[] = [user.userId];
 
     if (difficulty && ["easy", "medium", "hard"].includes(difficulty)) {
-      countQuery += " AND last_difficulty = ?";
+      countQuery += " AND uqs.last_difficulty = ?";
       countBindings.push(difficulty);
     }
 
     if (search) {
-      countQuery += " AND question_text LIKE ?";
+      countQuery += " AND q.question_text LIKE ?";
       countBindings.push(`%${search}%`);
     }
 

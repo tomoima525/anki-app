@@ -37,7 +37,7 @@ export default function QuestionsPage() {
   // Filters and search
   const [search, setSearch] = useState("");
   const [difficulty, setDifficulty] = useState<string>("");
-  const [sort, setSort] = useState<string>("recent");
+  const [sort, setSort] = useState<string>("newest");
   const [pagination, setPagination] = useState<PaginationInfo>({
     total: 0,
     limit: 50,
@@ -309,6 +309,7 @@ export default function QuestionsPage() {
                   onChange={(e) => handleSortChange(e.target.value)}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
+                  <option value="newest">Newest Questions</option>
                   <option value="recent">Recently Answered</option>
                   <option value="oldest">Least Recently Answered</option>
                   <option value="most_answered">Most Answered</option>
