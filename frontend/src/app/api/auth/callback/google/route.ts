@@ -5,7 +5,6 @@ import {
   validateOAuthState,
 } from "@/lib/google-oauth";
 import { createUserFromGoogle } from "@/lib/users";
-import { createSession, getSessionCookieConfig } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -72,6 +71,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Create or update user in backend database
+    // Backend will automatically set the session cookie with cross-origin support
     let user;
     try {
       user = await createUserFromGoogle(
@@ -87,17 +87,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create session
-    let sessionToken;
-    try {
-      sessionToken = await createSession(user.id, user.email, user.name);
-    } catch (error) {
-      console.error("Session creation failed:", error);
-      return NextResponse.redirect(
-        new URL("/login?error=auth_failed-create_session", request.url)
-      );
-    }
-
     // Get redirect destination (from cookie set during OAuth initiation)
     const redirectCookieName = "oauth_redirect";
     const redirectTo =
@@ -105,10 +94,6 @@ export async function GET(request: NextRequest) {
 
     // Create response with redirect
     const response = NextResponse.redirect(new URL(redirectTo, request.url));
-
-    // Set session cookie
-    const { name, options } = getSessionCookieConfig();
-    response.cookies.set(name, sessionToken, options);
 
     // Clear OAuth state and redirect cookies
     response.cookies.delete(stateCookieName);

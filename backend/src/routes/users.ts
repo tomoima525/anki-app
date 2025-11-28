@@ -4,6 +4,8 @@
  */
 
 import { Hono } from "hono";
+import { setCookie } from "hono/cookie";
+import { SignJWT } from "jose";
 import { authMiddleware, adminMiddleware } from "../middleware/auth";
 
 type Bindings = {
@@ -21,6 +23,27 @@ type Variables = {
 };
 
 const users = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+/**
+ * Helper: Create JWT session token
+ */
+async function createSessionToken(
+  userId: string,
+  email: string,
+  name: string,
+  secret: string
+): Promise<string> {
+  const secretKey = new TextEncoder().encode(secret);
+  const maxAge = 604800; // 7 days in seconds
+
+  const token = await new SignJWT({ userId, email, name })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${maxAge}s`)
+    .sign(secretKey);
+
+  return token;
+}
 
 /**
  * POST /api/users
@@ -78,6 +101,23 @@ users.post("/", async (c) => {
         .bind(existingUser.id)
         .first();
 
+      // Create session token and set cookie
+      const sessionToken = await createSessionToken(
+        String(existingUser.id),
+        email,
+        name,
+        c.env.SESSION_SECRET
+      );
+
+      // Set cookie with cross-origin support
+      setCookie(c, "anki_session", sessionToken, {
+        httpOnly: true,
+        secure: true, // Required for cross-origin
+        sameSite: "None", // Required for cross-origin
+        maxAge: 604800, // 7 days
+        path: "/",
+      });
+
       return c.json({
         user: updatedUser,
         created: false,
@@ -103,6 +143,23 @@ users.post("/", async (c) => {
       )
       .bind(userId)
       .first();
+
+    // Create session token and set cookie
+    const sessionToken = await createSessionToken(
+      userId,
+      email,
+      name,
+      c.env.SESSION_SECRET
+    );
+
+    // Set cookie with cross-origin support
+    setCookie(c, "anki_session", sessionToken, {
+      httpOnly: true,
+      secure: true, // Required for cross-origin
+      sameSite: "None", // Required for cross-origin
+      maxAge: 604800, // 7 days
+      path: "/",
+    });
 
     return c.json(
       {
