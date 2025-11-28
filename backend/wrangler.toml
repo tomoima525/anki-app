@@ -26,3 +26,11 @@ binding = "DB"
 database_name = "anki-interview-db-prod"
 database_id = "5dbc09cb-a3c6-4f2e-b4aa-cef932a2d765"
 migrations_dir = "db/migrations"
+
+
+[observability]
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
