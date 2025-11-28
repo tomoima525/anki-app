@@ -4,9 +4,7 @@ import {
   extractGoogleUser,
   validateOAuthState,
 } from "@/lib/google-oauth";
-import {
-  createUserFromGoogle,
-} from "@/lib/users";
+import { createUserFromGoogle } from "@/lib/users";
 import { createSession, getSessionCookieConfig } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
@@ -58,7 +56,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("Token exchange failed:", error);
       return NextResponse.redirect(
-        new URL("/login?error=auth_failed", request.url)
+        new URL("/login?error=auth_failed-token_exchange", request.url)
       );
     }
 
@@ -69,7 +67,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("Failed to extract user from ID token:", error);
       return NextResponse.redirect(
-        new URL("/login?error=auth_failed", request.url)
+        new URL("/login?error=auth_failed-extract_user", request.url)
       );
     }
 
@@ -85,7 +83,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("User creation/update failed:", error);
       return NextResponse.redirect(
-        new URL("/login?error=auth_failed", request.url)
+        new URL("/login?error=auth_failed-create_user", request.url)
       );
     }
 
@@ -96,7 +94,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("Session creation failed:", error);
       return NextResponse.redirect(
-        new URL("/login?error=auth_failed", request.url)
+        new URL("/login?error=auth_failed-create_session", request.url)
       );
     }
 
