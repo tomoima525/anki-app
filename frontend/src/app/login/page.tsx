@@ -36,7 +36,8 @@ function LoginForm() {
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
       if (!clientId) {
         setError(
-          "Google authentication is not configured. Please contact support."
+          "Google authentication is not configured. Please contact support. clientId: " +
+            clientId
         );
         setLoading(false);
         return;

@@ -15,3 +15,9 @@ NEXT_PUBLIC_BACKEND_URL= "https://anki-interview-app.tomoima525.workers.dev"
 NEXT_PUBLIC_GOOGLE_CLIENT_ID="494913230082-44coq05pq6cn0hs5sdshkksm48lbqtjb.apps.googleusercontent.com"
 GOOGLE_CLIENT_ID="494913230082-44coq05pq6cn0hs5sdshkksm48lbqtjb.apps.googleusercontent.com"
 
+[observability]
+[observability.logs]
+enabled = false
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
