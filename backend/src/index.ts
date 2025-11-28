@@ -88,9 +88,10 @@ app.route("/api/users", usersRouter);
 app.post("/api/auth/logout", async (c) => {
   try {
     // Clear the session cookie by setting it with an expired date
+    // Include Partitioned attribute to match cookie creation
     c.header(
       "Set-Cookie",
-      `anki_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`
+      `anki_session=; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=0`
     );
 
     return c.json({
