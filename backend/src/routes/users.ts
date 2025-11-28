@@ -46,6 +46,35 @@ async function createSessionToken(
 }
 
 /**
+ * Helper: Get cookie configuration based on environment
+ * Returns different settings for local development vs production
+ */
+function getCookieConfig(url: string) {
+  // Detect local development (localhost or 127.0.0.1)
+  const isLocalDev = url.includes("localhost") || url.includes("127.0.0.1");
+
+  if (isLocalDev) {
+    // Local development: HTTP, same-origin
+    return {
+      httpOnly: true,
+      secure: false, // Allow HTTP in local dev
+      sameSite: "Lax" as const, // More permissive for local testing
+      maxAge: 604800, // 7 days
+      path: "/",
+    };
+  } else {
+    // Production: HTTPS, cross-origin
+    return {
+      httpOnly: true,
+      secure: true, // Require HTTPS
+      sameSite: "None" as const, // Required for cross-origin
+      maxAge: 604800, // 7 days
+      path: "/",
+    };
+  }
+}
+
+/**
  * POST /api/users
  * Create a new user from Google OAuth data
  * This endpoint is called by the frontend during OAuth callback
@@ -109,14 +138,9 @@ users.post("/", async (c) => {
         c.env.SESSION_SECRET
       );
 
-      // Set cookie with cross-origin support
-      setCookie(c, "anki_session", sessionToken, {
-        httpOnly: true,
-        secure: true, // Required for cross-origin
-        sameSite: "None", // Required for cross-origin
-        maxAge: 604800, // 7 days
-        path: "/",
-      });
+      // Set cookie with environment-appropriate configuration
+      const cookieConfig = getCookieConfig(c.req.url);
+      setCookie(c, "anki_session", sessionToken, cookieConfig);
 
       return c.json({
         user: updatedUser,
@@ -152,14 +176,9 @@ users.post("/", async (c) => {
       c.env.SESSION_SECRET
     );
 
-    // Set cookie with cross-origin support
-    setCookie(c, "anki_session", sessionToken, {
-      httpOnly: true,
-      secure: true, // Required for cross-origin
-      sameSite: "None", // Required for cross-origin
-      maxAge: 604800, // 7 days
-      path: "/",
-    });
+    // Set cookie with environment-appropriate configuration
+    const cookieConfig = getCookieConfig(c.req.url);
+    setCookie(c, "anki_session", sessionToken, cookieConfig);
 
     return c.json(
       {
