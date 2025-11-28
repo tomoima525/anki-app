@@ -232,6 +232,116 @@ export async function parseQuestionsInChunks(
   return deduplicated;
 }
 
+const ANSWER_GENERATION_PROMPT = `You are a helpful assistant that generates comprehensive answers to interview questions.
+
+Given a list of interview questions, provide detailed, accurate answers for each one.
+
+Format your response as a JSON array with this structure:
+
+{
+  "answers": [
+    {
+      "question": "The original question text",
+      "answer": "A detailed, comprehensive answer"
+    }
+  ]
+}
+
+Guidelines:
+- Provide accurate, detailed answers appropriate for interview preparation
+- Include code examples where relevant
+- Explain concepts clearly and thoroughly
+- Keep answers concise but informative (2-5 paragraphs typically)
+- Return valid JSON only, no other text
+
+Here are the questions:
+
+`;
+
+/**
+ * Generates answers for questions using OpenAI
+ * Takes a list of questions and returns them with generated answers
+ */
+export async function generateAnswersWithOpenAI(
+  questions: string[],
+  apiKey: string,
+  model: string = "gpt-4o-mini"
+): Promise<ParsedQuestion[]> {
+  const openai = new OpenAI({ apiKey });
+
+  const questionsText = questions
+    .map((q, idx) => `${idx + 1}. ${q}`)
+    .join("\n\n");
+
+  try {
+    const response = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert interview coach. Generate comprehensive, accurate answers to technical interview questions. Always return valid JSON.",
+        },
+        {
+          role: "user",
+          content: ANSWER_GENERATION_PROMPT + questionsText,
+        },
+      ],
+      temperature: 0.3, // Slightly creative but mostly factual
+      response_format: { type: "json_object" },
+    });
+
+    const content = response.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("No content in OpenAI response");
+    }
+
+    const parsed = JSON.parse(content);
+    const answersArray = parsed.answers || [];
+
+    // Validate structure
+    return answersArray.filter(
+      (item: unknown): item is ParsedQuestion =>
+        typeof item === "object" &&
+        item !== null &&
+        "question" in item &&
+        "answer" in item &&
+        typeof item.question === "string" &&
+        typeof item.answer === "string"
+    );
+  } catch (error) {
+    console.error("OpenAI answer generation error:", error);
+    throw new Error(`Failed to generate answers: ${error}`);
+  }
+}
+
+/**
+ * Generates answers for a list of questions in chunks to avoid token limits
+ */
+export async function generateAnswersInChunks(
+  questions: string[],
+  apiKey: string,
+  model: string = "gpt-4o-mini",
+  chunkSize: number = 20
+): Promise<ParsedQuestion[]> {
+  const allAnswers: ParsedQuestion[] = [];
+
+  // Process questions in chunks
+  for (let i = 0; i < questions.length; i += chunkSize) {
+    const chunk = questions.slice(i, i + chunkSize);
+    console.log(
+      `  Generating answers for questions ${i + 1}-${Math.min(i + chunkSize, questions.length)} of ${questions.length}...`
+    );
+
+    const answers = await generateAnswersWithOpenAI(chunk, apiKey, model);
+    allAnswers.push(...answers);
+    console.log(`  ✓ Generated ${answers.length} answers`);
+  }
+
+  return allAnswers;
+}
+
 function splitMarkdownIntoChunks(
   content: string,
   maxChunkSize: number

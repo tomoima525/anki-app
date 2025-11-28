@@ -118,23 +118,37 @@ Before importing to the database, review the JSON files in the `data/` directory
 Once you've reviewed and are satisfied with the data:
 
 ```bash
+# Upsert to LOCAL database
 # From the backend directory
 pnpm upsert-data
 
 # Or from the root directory
 pnpm --filter anki-interview-backend upsert-data
+
+# Upsert to PRODUCTION database (requires confirmation)
+# From the backend directory
+pnpm upsert-data:prod
+
+# Or from the root directory
+pnpm --filter anki-interview-backend upsert-data:prod
 ```
 
 **What it does:**
 - Reads JSON files from `data/` directory
 - Validates that all questions have answers
-- Upserts questions to the local D1 database
+- Upserts questions to the D1 database (local or production)
 - Shows summary of inserted, updated, and skipped questions
 
 **Behavior:**
-- **Insert**: New questions not in the database
-- **Update**: Existing questions (matched by title + content)
-- **Skip**: Questions that haven't changed
+- Uses `INSERT OR REPLACE` to upsert questions to the database
+- Preserves existing `created_at`, `answer_count`, `last_answered_at`, and `last_difficulty` for existing questions
+- Questions are matched by ID (generated from question + answer content)
+- All questions are processed in a single transaction for efficiency
+
+**Safety:**
+- Production upserts require confirmation prompt
+- Uses temporary SQL files to avoid shell escaping issues
+- Automatic cleanup of temporary files
 
 ### Complete Workflow Example
 
@@ -154,10 +168,15 @@ pnpm generate-answers
 cat ../data/my_source_2025-11-28.json
 # Edit if needed...
 
-# 4. Upsert to database
+# 4a. Upsert to local database
 pnpm upsert-data
 
-# Output shows: 25 inserted, 0 updated, 0 skipped
+# Output shows: Successfully upserted 25 questions
+
+# 4b. (Optional) Upsert to production database
+pnpm upsert-data:prod
+
+# Requires confirmation, then shows: Successfully upserted 25 questions
 ```
 
 ### Configuring Sources

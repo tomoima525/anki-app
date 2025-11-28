@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { parseQuestionsInChunks } from "../../src/lib/openai-parser";
+import { generateAnswersInChunks } from "../../src/lib/openai-parser";
 import { readFileSync, writeFileSync, readdirSync } from "fs";
 import { join } from "path";
 import type { ParseResult } from "./types";
@@ -50,16 +50,12 @@ async function main() {
         `  📝 Generating answers for ${questionsNeedingAnswers.length} questions...`
       );
 
-      // Prepare content for OpenAI (combine questions into markdown)
-      const markdownContent = questionsNeedingAnswers
-        .map((q, idx) => {
-          return `## Question ${idx + 1}\n\n${q.content}`;
-        })
-        .join("\n\n");
+      // Extract question content as array of strings
+      const questionTexts = questionsNeedingAnswers.map((q) => q.content);
 
       // Generate answers using OpenAI
-      const generatedQA = await parseQuestionsInChunks(
-        markdownContent,
+      const generatedQA = await generateAnswersInChunks(
+        questionTexts,
         apiKey,
         model
       );
@@ -68,21 +64,16 @@ async function main() {
 
       // Update the questions with generated answers
       let updatedCount = 0;
-      for (let i = 0; i < questionsNeedingAnswers.length; i++) {
-        if (i < generatedQA.length) {
-          const originalQuestion = questionsNeedingAnswers[i];
-          const generatedAnswer = generatedQA[i];
+      for (const generatedItem of generatedQA) {
+        // Find the matching question in the original data by content
+        const questionIndex = data.questions.findIndex(
+          (q) => q.content === generatedItem.question
+        );
 
-          // Find the question in the original data and update it
-          const questionIndex = data.questions.findIndex(
-            (q) => q.content === originalQuestion.content
-          );
-
-          if (questionIndex !== -1) {
-            data.questions[questionIndex].answer = generatedAnswer.answer;
-            data.questions[questionIndex].hasAnswer = true;
-            updatedCount++;
-          }
+        if (questionIndex !== -1) {
+          data.questions[questionIndex].answer = generatedItem.answer;
+          data.questions[questionIndex].hasAnswer = true;
+          updatedCount++;
         }
       }
 
