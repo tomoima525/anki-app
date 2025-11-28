@@ -7,6 +7,7 @@ interface QuestionData {
   question: string;
   answer?: string;
   source: string;
+  source_name?: string;
 }
 
 type Difficulty = "easy" | "medium" | "hard";
@@ -65,7 +66,7 @@ export default function StudyPage() {
       }
 
       const data = await response.json();
-      setSources(data.sources.map((s: { source: string }) => s.source));
+      setSources(data.sources.map((s: { source_name: string }) => s.source_name));
     } catch (err) {
       console.error("Load sources error:", err);
     }
@@ -82,7 +83,7 @@ export default function StudyPage() {
         process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
       const url = new URL(`${backendUrl}/api/study/next`);
       if (selectedSource) {
-        url.searchParams.append("source", selectedSource);
+        url.searchParams.append("source_name", selectedSource);
       }
 
       const response = await fetch(url.toString(), {
@@ -221,7 +222,7 @@ export default function StudyPage() {
               <option value="">All Sources</option>
               {sources.map((source) => (
                 <option key={source} value={source}>
-                  {source.split("/").pop()}
+                  {source}
                 </option>
               ))}
             </select>
@@ -263,7 +264,7 @@ export default function StudyPage() {
           <div className="bg-white rounded-lg shadow-lg p-8">
             {/* Source */}
             <div className="text-sm text-gray-500 mb-4">
-              Source: {question.source.split("/").pop()}
+              Source: {question.source_name || question.source.split("/").pop()}
             </div>
 
             {/* Question */}
