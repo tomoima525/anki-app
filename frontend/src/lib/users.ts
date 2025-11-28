@@ -18,7 +18,7 @@ export interface User {
 const getApiBaseUrl = () => {
   if (typeof window === "undefined") {
     // Server-side: use backend URL from environment or default
-    return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
+    return process.env.BACKEND_URL || "http://localhost:8787";
   }
   // Client-side: use same origin or environment variable
   return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
@@ -38,8 +38,7 @@ export async function createUserFromGoogle(
   name: string,
   picture?: string
 ): Promise<User> {
-  const userId = crypto.randomUUID();
-
+  // Let the backend generate the user ID
   const response = await fetch(`${getApiBaseUrl()}/api/users`, {
     method: "POST",
     headers: {
@@ -47,7 +46,6 @@ export async function createUserFromGoogle(
     },
     credentials: "include",
     body: JSON.stringify({
-      id: userId,
       email,
       name,
       picture,
@@ -56,10 +54,22 @@ export async function createUserFromGoogle(
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create user: ${response.statusText}`);
+    const errorText = await response.text();
+    console.error("Backend error response:", errorText);
+    throw new Error(
+      `Failed to create user: ${response.status} ${response.statusText} - ${errorText}`
+    );
   }
 
   const data = (await response.json()) as { user: User; created: boolean };
+  console.log("Backend returned user:", JSON.stringify(data.user, null, 2));
+
+  // Ensure the user has an ID
+  if (!data.user || !data.user.id) {
+    console.error("Backend returned invalid user data:", data);
+    throw new Error("Backend returned user without ID");
+  }
+
   return data.user;
 }
 

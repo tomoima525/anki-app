@@ -9,11 +9,13 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+.env.production
 
 # Frontend specific
 frontend/.next/
 frontend/out/
 frontend/.env.local
+frontend/.vercel
 
 # Backend specific
 backend/.wrangler/
@@ -48,6 +50,3 @@ Thumbs.db
 # Data exports
 data/*.csv
 data/*.json
-
-
-.open-next/

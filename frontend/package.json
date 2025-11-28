@@ -10,12 +10,9 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
-    "worker:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "worker:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy -- --keep-vars"
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@opennextjs/cloudflare": "^1.13.1",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@types/node": "^24.10.1",
@@ -34,7 +31,6 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251117.0",
     "@tailwindcss/postcss": "^4.1.17",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

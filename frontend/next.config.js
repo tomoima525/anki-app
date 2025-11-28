@@ -4,7 +4,6 @@ const nextConfig = {
   reactStrictMode: true,
   // this includes files from the monorepo base two directories up
   //outputFileTracingRoot: path.join(__dirname, "../"),
-  output: "standalone",
 };
 
 module.exports = nextConfig;
