@@ -80,6 +80,29 @@ app.get("/health", (c) => {
 // Mount user routes
 app.route("/api/users", usersRouter);
 
+// Logout endpoint
+/**
+ * POST /api/auth/logout
+ * Clear session cookie to log out user
+ */
+app.post("/api/auth/logout", async (c) => {
+  try {
+    // Clear the session cookie by setting it with an expired date
+    c.header(
+      "Set-Cookie",
+      `anki_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`
+    );
+
+    return c.json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    return c.json({ error: "Failed to logout" }, 500);
+  }
+});
+
 // Study endpoints
 
 /**

@@ -162,17 +162,24 @@ export default function StudyPage() {
     }
   };
 
-  if (error && !question) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-2xl w-full mx-auto p-6">
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {error}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleSignOut = async () => {
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
+      const response = await fetch(`${backendUrl}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        // Redirect to login page
+        window.location.href = "/auth/signin";
+      }
+    } catch (err) {
+      console.error("Sign out error:", err);
+      setError("Failed to sign out. Please try again.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -180,13 +187,19 @@ export default function StudyPage() {
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Study Session</h1>
-          <nav className="space-x-4">
+          <nav className="flex items-center gap-4">
             <a href="/dashboard" className="text-blue-600 hover:text-blue-800">
               Dashboard
             </a>
             <a href="/questions" className="text-blue-600 hover:text-blue-800">
               All Questions
             </a>
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg font-medium transition-colors"
+            >
+              Sign Out
+            </button>
           </nav>
         </div>
 
@@ -215,25 +228,35 @@ export default function StudyPage() {
           </div>
         )}
 
-        {/* Keyboard shortcuts hint */}
-        <div className="mb-4 text-sm text-gray-500 text-center">
-          {!showAnswer ? (
-            <p>Press Space or Enter to show answer</p>
-          ) : (
-            <p>Press 1 (Easy), 2 (Medium), or 3 (Hard)</p>
-          )}
-        </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {error}
+        {/* Error message - displayed prominently */}
+        {error && !question ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6">
+            <div className="font-semibold mb-1">Error</div>
+            <div>{error}</div>
           </div>
+        ) : (
+          <>
+            {/* Keyboard shortcuts hint */}
+            <div className="mb-4 text-sm text-gray-500 text-center">
+              {!showAnswer ? (
+                <p>Press Space or Enter to show answer</p>
+              ) : (
+                <p>Press 1 (Easy), 2 (Medium), or 3 (Hard)</p>
+              )}
+            </div>
+
+            {/* Error message for non-critical errors */}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {error}
+              </div>
+            )}
+          </>
         )}
 
         {/* Question card */}
         {loading && !question ? (
-          <div className="text-center py-12">
+          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
             <div className="text-gray-600">Loading question...</div>
           </div>
         ) : question ? (
