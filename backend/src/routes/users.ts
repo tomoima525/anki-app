@@ -68,10 +68,9 @@ function getCookieConfig(url: string) {
       httpOnly: true,
       secure: true, // Require HTTPS
       sameSite: "None" as const, // Required for cross-origin
-      partitioned: true, // CHIPS - Cookies Having Independent Partitioned State
       maxAge: 604800, // 7 days
       path: "/",
-    } as any; // Using 'as any' because partitioned is not yet in all type definitions
+    };
   }
 }
 
@@ -95,10 +94,7 @@ users.post("/", async (c) => {
 
     // Validate required fields
     if (!email || !name) {
-      return c.json(
-        { error: "Missing required fields: email, name" },
-        400
-      );
+      return c.json({ error: "Missing required fields: email, name" }, 400);
     }
 
     const now = new Date().toISOString();

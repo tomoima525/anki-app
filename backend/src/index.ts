@@ -68,6 +68,13 @@ app.use(
       }
       return "http://localhost:3000"; // default
     },
+    allowHeaders: [
+      "Origin",
+      "Content-Type",
+      "Authorization",
+      "X-Custom-Header",
+    ],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
@@ -88,10 +95,9 @@ app.route("/api/users", usersRouter);
 app.post("/api/auth/logout", async (c) => {
   try {
     // Clear the session cookie by setting it with an expired date
-    // Include Partitioned attribute to match cookie creation
     c.header(
       "Set-Cookie",
-      `anki_session=; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=0`
+      `anki_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`
     );
 
     return c.json({
@@ -442,7 +448,10 @@ app.delete("/api/questions/:id", authMiddleware, adminMiddleware, async (c) => {
     // Verify deletion succeeded (questions deletion is at index 2)
     const questionDeleteResult = results[2];
     if (questionDeleteResult.meta.changes === 0) {
-      return c.json({ error: "Failed to delete question", success: false }, 500);
+      return c.json(
+        { error: "Failed to delete question", success: false },
+        500
+      );
     }
 
     return c.json(
@@ -604,14 +613,18 @@ app.get("/api/dashboard/daily-stats", authMiddleware, async (c) => {
     if (dailyStats.first_answer_at && dailyStats.last_answer_at) {
       const firstTime = new Date(dailyStats.first_answer_at).getTime();
       const lastTime = new Date(dailyStats.last_answer_at).getTime();
-      estimatedStudyTimeMinutes = Math.round((lastTime - firstTime) / (1000 * 60));
+      estimatedStudyTimeMinutes = Math.round(
+        (lastTime - firstTime) / (1000 * 60)
+      );
     }
 
     // Calculate comparisons
     const vsDailyAvg =
       averages.daily_avg > 0
         ? Math.round(
-            ((dailyStats.total_answers - averages.daily_avg) / averages.daily_avg) * 100
+            ((dailyStats.total_answers - averages.daily_avg) /
+              averages.daily_avg) *
+              100
           )
         : 0;
     const vsYesterday = dailyStats.total_answers - yesterdayStats.total_answers;
@@ -719,7 +732,12 @@ app.get("/api/dashboard/review-queue", authMiddleware, async (c) => {
     const limit = parseInt(c.req.query("limit") || "10", 10);
     const daysThreshold = parseInt(c.req.query("days_threshold") || "7", 10);
 
-    const questions = await getReviewQueue(db, user.userId, limit, daysThreshold);
+    const questions = await getReviewQueue(
+      db,
+      user.userId,
+      limit,
+      daysThreshold
+    );
 
     // Get total count of questions needing review for this user
     const totalCountResult = await db
