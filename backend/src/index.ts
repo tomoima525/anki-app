@@ -5,6 +5,7 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { setCookie } from "hono/cookie";
 import {
   getDailyStats,
   getActivityTrend,
@@ -86,6 +87,105 @@ app.get("/health", (c) => {
 
 // Mount user routes
 app.route("/api/users", usersRouter);
+
+// Session setup endpoint for cross-origin cookie setting
+/**
+ * GET /api/auth/set-session
+ * Sets the session cookie when browser visits directly
+ * This is needed because cookies set in server-to-server calls don't reach the browser
+ *
+ * Query params:
+ * - token: JWT session token
+ * - redirect: URL to redirect to after setting cookie (must be an allowed origin)
+ */
+app.get("/api/auth/set-session", async (c) => {
+  try {
+    const token = c.req.query("token");
+    const redirectUrl = c.req.query("redirect");
+
+    if (!token) {
+      return c.json({ error: "Missing token parameter" }, 400);
+    }
+
+    // Verify the token is valid before setting cookie
+    const sessionSecret = c.env.SESSION_SECRET;
+    if (!sessionSecret) {
+      return c.json({ error: "Session configuration error" }, 500);
+    }
+
+    // Verify JWT token
+    try {
+      const secretKey = new TextEncoder().encode(sessionSecret);
+      const { jwtVerify } = await import("jose");
+      await jwtVerify(token, secretKey);
+    } catch (error) {
+      console.error("Invalid token in set-session:", error);
+      return c.json({ error: "Invalid or expired token" }, 401);
+    }
+
+    // Detect if this is local development
+    const url = c.req.url;
+    const isLocalDev = url.includes("localhost") || url.includes("127.0.0.1");
+
+    // Set the session cookie using Hono's setCookie
+    const cookieOptions = isLocalDev
+      ? {
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax" as const,
+          maxAge: 604800,
+          path: "/",
+        }
+      : {
+          httpOnly: true,
+          secure: true,
+          sameSite: "None" as const,
+          maxAge: 604800,
+          path: "/",
+        };
+
+    setCookie(c, "anki_session", token, cookieOptions);
+
+    console.log("Session cookie set via direct browser visit:", {
+      url: c.req.url,
+      isLocalDev,
+      cookieOptions,
+      redirectUrl,
+    });
+
+    // Redirect to the specified URL or return success
+    if (redirectUrl) {
+      // Validate redirect URL is from allowed origins
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "https://anki-app-frontend.vercel.app",
+      ];
+
+      try {
+        const parsedRedirect = new URL(redirectUrl);
+        const isAllowed = allowedOrigins.some(
+          (origin) =>
+            parsedRedirect.origin === origin ||
+            parsedRedirect.origin.startsWith("http://localhost:")
+        );
+
+        if (!isAllowed) {
+          console.warn("Redirect URL not in allowed origins:", redirectUrl);
+          return c.json({ error: "Invalid redirect URL" }, 400);
+        }
+
+        return c.redirect(redirectUrl);
+      } catch {
+        return c.json({ error: "Invalid redirect URL format" }, 400);
+      }
+    }
+
+    return c.json({ success: true, message: "Session cookie set" });
+  } catch (error) {
+    console.error("Set session error:", error);
+    return c.json({ error: "Failed to set session" }, 500);
+  }
+});
 
 // Logout endpoint
 /**

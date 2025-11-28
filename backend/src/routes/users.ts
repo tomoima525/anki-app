@@ -4,7 +4,6 @@
  */
 
 import { Hono } from "hono";
-import { setCookie } from "hono/cookie";
 import { SignJWT } from "jose";
 import { authMiddleware, adminMiddleware } from "../middleware/auth";
 
@@ -43,35 +42,6 @@ async function createSessionToken(
     .sign(secretKey);
 
   return token;
-}
-
-/**
- * Helper: Get cookie configuration based on environment
- * Returns different settings for local development vs production
- */
-function getCookieConfig(url: string) {
-  // Detect local development (localhost or 127.0.0.1)
-  const isLocalDev = url.includes("localhost") || url.includes("127.0.0.1");
-
-  if (isLocalDev) {
-    // Local development: HTTP, same-origin
-    return {
-      httpOnly: true,
-      secure: false, // Allow HTTP in local dev
-      sameSite: "Lax" as const, // More permissive for local testing
-      maxAge: 604800, // 7 days
-      path: "/",
-    };
-  } else {
-    // Production: HTTPS, cross-origin
-    return {
-      httpOnly: true,
-      secure: true, // Require HTTPS
-      sameSite: "None" as const, // Required for cross-origin
-      maxAge: 604800, // 7 days
-      path: "/",
-    };
-  }
 }
 
 /**
@@ -127,7 +97,7 @@ users.post("/", async (c) => {
         .bind(existingUser.id)
         .first();
 
-      // Create session token and set cookie
+      // Create session token for cross-origin session setup
       const sessionToken = await createSessionToken(
         String(existingUser.id),
         email,
@@ -135,19 +105,14 @@ users.post("/", async (c) => {
         c.env.SESSION_SECRET
       );
 
-      // Set cookie with environment-appropriate configuration
-      const cookieConfig = getCookieConfig(c.req.url);
-      setCookie(c, "anki_session", sessionToken, cookieConfig);
-
-      console.log("Cookie set for existing user:", {
-        url: c.req.url,
-        cookieConfig,
+      console.log("Session token created for existing user:", {
         userId: existingUser.id,
       });
 
       return c.json({
         user: updatedUser,
         created: false,
+        sessionToken, // Token for cross-origin session setup via /api/auth/set-session
       });
     }
 
@@ -171,7 +136,7 @@ users.post("/", async (c) => {
       .bind(userId)
       .first();
 
-    // Create session token and set cookie
+    // Create session token for cross-origin session setup
     const sessionToken = await createSessionToken(
       userId,
       email,
@@ -179,13 +144,7 @@ users.post("/", async (c) => {
       c.env.SESSION_SECRET
     );
 
-    // Set cookie with environment-appropriate configuration
-    const cookieConfig = getCookieConfig(c.req.url);
-    setCookie(c, "anki_session", sessionToken, cookieConfig);
-
-    console.log("Cookie set for new user:", {
-      url: c.req.url,
-      cookieConfig,
+    console.log("Session token created for new user:", {
       userId,
     });
 
@@ -193,6 +152,7 @@ users.post("/", async (c) => {
       {
         user: newUser,
         created: true,
+        sessionToken, // Token for cross-origin session setup via /api/auth/set-session
       },
       201
     );

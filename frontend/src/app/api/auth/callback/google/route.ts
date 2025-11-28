@@ -71,10 +71,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Create or update user in backend database
-    // Backend will automatically set the session cookie with cross-origin support
-    let user;
+    // Backend returns session token that we'll use to set cookie via redirect
+    let result;
     try {
-      user = await createUserFromGoogle(
+      result = await createUserFromGoogle(
         googleUser.googleId,
         googleUser.email,
         googleUser.name,
@@ -92,8 +92,26 @@ export async function GET(request: NextRequest) {
     const redirectTo =
       request.cookies.get(redirectCookieName)?.value || "/study";
 
-    // Create response with redirect
-    const response = NextResponse.redirect(new URL(redirectTo, request.url));
+    // Build final redirect URL (frontend destination after session is set)
+    const finalRedirectUrl = new URL(redirectTo, request.url).toString();
+
+    // Build backend session-setting URL
+    // This redirects the browser to the backend, which sets the cookie and redirects back
+    const backendUrl =
+      process.env.BACKEND_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      "http://localhost:8787";
+    const sessionSetupUrl = new URL(`${backendUrl}/api/auth/set-session`);
+    sessionSetupUrl.searchParams.set("token", result.sessionToken);
+    sessionSetupUrl.searchParams.set("redirect", finalRedirectUrl);
+
+    console.log("Redirecting to backend for session setup:", {
+      sessionSetupUrl: sessionSetupUrl.toString(),
+      finalRedirectUrl,
+    });
+
+    // Create response that redirects to backend for cookie setting
+    const response = NextResponse.redirect(sessionSetupUrl.toString());
 
     // Clear OAuth state and redirect cookies
     response.cookies.delete(stateCookieName);
