@@ -1,27 +1,27 @@
-import { getAllUsers } from '@/lib/users'
+import { getAllUsers } from "@/lib/users";
 
 async function getSystemStats() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
+  const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
   try {
     // Get question stats
     const questionsRes = await fetch(`${apiUrl}/api/questions/stats`, {
-      credentials: 'include',
-      cache: 'no-store',
-    })
-    const questionStats = questionsRes.ok ? await questionsRes.json() : null
+      credentials: "include",
+      cache: "no-store",
+    });
+    const questionStats = questionsRes.ok ? await questionsRes.json() : null;
 
     // Get all users (paginated)
-    const { users, pagination } = await getAllUsers(1000, 0)
+    const { users, pagination } = await getAllUsers(1000, 0);
 
     // Calculate user stats
-    const adminCount = users.filter(u => u.is_admin).length
-    const activeUsers = users.filter(u => {
-      const lastLogin = new Date(u.last_login_at)
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      return lastLogin > weekAgo
-    }).length
+    const adminCount = users.filter((u) => u.is_admin).length;
+    const activeUsers = users.filter((u) => {
+      const lastLogin = new Date(u.last_login_at);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return lastLogin > weekAgo;
+    }).length;
 
     return {
       totalUsers: pagination.total,
@@ -30,15 +30,15 @@ async function getSystemStats() {
       totalQuestions: questionStats?.totalQuestions || 0,
       answeredQuestions: questionStats?.answeredQuestions || 0,
       recentActivity: questionStats?.recentActivity || 0,
-    }
+    };
   } catch (error) {
-    console.error('Failed to fetch system stats:', error)
-    return null
+    console.error("Failed to fetch system stats:", error);
+    return null;
   }
 }
 
 export default async function AdminDashboard() {
-  const stats = await getSystemStats()
+  const stats = await getSystemStats();
 
   if (!stats) {
     return (
@@ -48,38 +48,38 @@ export default async function AdminDashboard() {
         </h2>
         <p className="text-red-600">Failed to load system statistics</p>
       </div>
-    )
+    );
   }
 
   const statCards = [
     {
-      title: 'Total Users',
+      title: "Total Users",
       value: stats.totalUsers,
       description: `${stats.adminCount} admins, ${stats.activeUsers} active this week`,
-      color: 'blue',
+      color: "blue",
     },
     {
-      title: 'Total Questions',
+      title: "Total Questions",
       value: stats.totalQuestions,
       description: `${stats.answeredQuestions} answered at least once`,
-      color: 'green',
+      color: "green",
     },
     {
-      title: 'Recent Activity',
+      title: "Recent Activity",
       value: stats.recentActivity,
-      description: 'Answers in the last 7 days',
-      color: 'purple',
+      description: "Answers in the last 7 days",
+      color: "purple",
     },
     {
-      title: 'Completion Rate',
+      title: "Completion Rate",
       value:
         stats.totalQuestions > 0
           ? `${Math.round((stats.answeredQuestions / stats.totalQuestions) * 100)}%`
-          : '0%',
-      description: 'Questions with at least one answer',
-      color: 'yellow',
+          : "0%",
+      description: "Questions with at least one answer",
+      color: "yellow",
     },
-  ]
+  ];
 
   return (
     <div>
@@ -100,13 +100,13 @@ export default async function AdminDashboard() {
             className="bg-white rounded-lg shadow-sm p-6 border-l-4"
             style={{
               borderLeftColor:
-                card.color === 'blue'
-                  ? '#3b82f6'
-                  : card.color === 'green'
-                    ? '#10b981'
-                    : card.color === 'purple'
-                      ? '#8b5cf6'
-                      : '#f59e0b',
+                card.color === "blue"
+                  ? "#3b82f6"
+                  : card.color === "green"
+                    ? "#10b981"
+                    : card.color === "purple"
+                      ? "#8b5cf6"
+                      : "#f59e0b",
             }}
           >
             <h3 className="text-sm font-medium text-gray-600 mb-2">
@@ -130,9 +130,7 @@ export default async function AdminDashboard() {
             href="/admin/questions"
             className="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
           >
-            <h4 className="font-medium text-gray-900 mb-1">
-              Manage Questions
-            </h4>
+            <h4 className="font-medium text-gray-900 mb-1">Manage Questions</h4>
             <p className="text-sm text-gray-600">
               Create, update, or delete interview questions
             </p>
@@ -158,5 +156,5 @@ export default async function AdminDashboard() {
         </div>
       </div>
     </div>
-  )
+  );
 }

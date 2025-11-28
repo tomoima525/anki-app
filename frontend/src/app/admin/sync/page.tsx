@@ -1,70 +1,59 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
+import { useState } from "react";
 
 interface SyncResult {
-  source: string
-  inserted?: number
-  updated?: number
-  skipped?: number
-  error?: string
+  source: string;
+  inserted?: number;
+  updated?: number;
+  skipped?: number;
+  error?: string;
 }
 
 export default function AdminSyncPage() {
-  const [syncing, setSyncing] = useState(false)
-  const [results, setResults] = useState<SyncResult[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false);
+  const [results, setResults] = useState<SyncResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
+  const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
   async function handleSync() {
     try {
-      setSyncing(true)
-      setError(null)
-      setResults([])
+      setSyncing(true);
+      setError(null);
+      setResults([]);
 
       const res = await fetch(`${apiUrl}/api/sync/github`, {
-        method: 'POST',
-        credentials: 'include',
-      })
+        method: "POST",
+        credentials: "include",
+      });
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to sync questions')
+        const data = await res.json();
+        throw new Error(data.error || "Failed to sync questions");
       }
 
-      const data = await res.json()
-      setResults(data.results || [])
+      const data = await res.json();
+      setResults(data.results || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sync questions')
+      setError(err instanceof Error ? err.message : "Failed to sync questions");
     } finally {
-      setSyncing(false)
+      setSyncing(false);
     }
   }
 
-  const totalInserted = results.reduce(
-    (sum, r) => sum + (r.inserted || 0),
-    0
-  )
-  const totalUpdated = results.reduce(
-    (sum, r) => sum + (r.updated || 0),
-    0
-  )
-  const totalSkipped = results.reduce(
-    (sum, r) => sum + (r.skipped || 0),
-    0
-  )
+  const totalInserted = results.reduce((sum, r) => sum + (r.inserted || 0), 0);
+  const totalUpdated = results.reduce((sum, r) => sum + (r.updated || 0), 0);
+  const totalSkipped = results.reduce((sum, r) => sum + (r.skipped || 0), 0);
 
   return (
     <div>
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          GitHub Sync
-        </h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">GitHub Sync</h2>
         <p className="text-gray-600 mb-6">
-          Import interview questions from configured GitHub repositories.
-          This operation will fetch questions from all configured sources
-          and add them to the shared question pool.
+          Import interview questions from configured GitHub repositories. This
+          operation will fetch questions from all configured sources and add
+          them to the shared question pool.
         </p>
 
         <button
@@ -72,11 +61,11 @@ export default function AdminSyncPage() {
           disabled={syncing}
           className={`px-6 py-3 rounded-md font-medium transition-colors ${
             syncing
-              ? 'bg-gray-400 cursor-not-allowed text-white'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
+              ? "bg-gray-400 cursor-not-allowed text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
           }`}
         >
-          {syncing ? 'Syncing...' : 'Sync Questions from GitHub'}
+          {syncing ? "Syncing..." : "Sync Questions from GitHub"}
         </button>
       </div>
 
@@ -135,8 +124,8 @@ export default function AdminSyncPage() {
                   key={index}
                   className={`border rounded-lg p-4 ${
                     result.error
-                      ? 'border-red-200 bg-red-50'
-                      : 'border-gray-200'
+                      ? "border-red-200 bg-red-50"
+                      : "border-gray-200"
                   }`}
                 >
                   <h4 className="font-semibold text-gray-900 mb-2">
@@ -147,13 +136,22 @@ export default function AdminSyncPage() {
                   ) : (
                     <div className="text-sm text-gray-700 space-y-1">
                       <p>
-                        Inserted: <span className="font-medium">{result.inserted || 0}</span>
+                        Inserted:{" "}
+                        <span className="font-medium">
+                          {result.inserted || 0}
+                        </span>
                       </p>
                       <p>
-                        Updated: <span className="font-medium">{result.updated || 0}</span>
+                        Updated:{" "}
+                        <span className="font-medium">
+                          {result.updated || 0}
+                        </span>
                       </p>
                       <p>
-                        Skipped: <span className="font-medium">{result.skipped || 0}</span>
+                        Skipped:{" "}
+                        <span className="font-medium">
+                          {result.skipped || 0}
+                        </span>
                       </p>
                     </div>
                   )}
@@ -170,23 +168,17 @@ export default function AdminSyncPage() {
           How GitHub Sync Works
         </h3>
         <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-          <li>
-            Fetches questions from configured GitHub repository URLs
-          </li>
+          <li>Fetches questions from configured GitHub repository URLs</li>
           <li>
             Uses AI to detect if answers are pre-written or need generation
           </li>
           <li>
             Questions are added to the shared pool accessible to all users
           </li>
-          <li>
-            Existing questions are updated if content has changed
-          </li>
-          <li>
-            Duplicate questions are automatically skipped
-          </li>
+          <li>Existing questions are updated if content has changed</li>
+          <li>Duplicate questions are automatically skipped</li>
         </ul>
       </div>
     </div>
-  )
+  );
 }

@@ -1,83 +1,85 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 
 interface Question {
-  id: string
-  question_text: string
-  answer_text: string
-  source: string
-  created_by: string | null
-  created_at: string
-  updated_at: string
+  id: string;
+  question_text: string;
+  answer_text: string;
+  source: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function AdminQuestionsPage() {
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState('newest')
-  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(
+    null
+  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
+  const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
   useEffect(() => {
-    fetchQuestions()
-  }, [sortBy, searchTerm])
+    fetchQuestions();
+  }, [sortBy, searchTerm]);
 
   async function fetchQuestions() {
     try {
-      setLoading(true)
+      setLoading(true);
       const params = new URLSearchParams({
         sort: sortBy,
-        limit: '100',
-      })
+        limit: "100",
+      });
       if (searchTerm) {
-        params.set('search', searchTerm)
+        params.set("search", searchTerm);
       }
 
       const res = await fetch(`${apiUrl}/api/questions?${params}`, {
-        credentials: 'include',
-      })
+        credentials: "include",
+      });
 
       if (!res.ok) {
-        throw new Error('Failed to fetch questions')
+        throw new Error("Failed to fetch questions");
       }
 
-      const data = await res.json()
-      setQuestions(data.questions || [])
-      setError(null)
+      const data = await res.json();
+      setQuestions(data.questions || []);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load questions')
+      setError(err instanceof Error ? err.message : "Failed to load questions");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function handleDelete(questionId: string) {
     try {
       const res = await fetch(`${apiUrl}/api/questions/${questionId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
+        method: "DELETE",
+        credentials: "include",
+      });
 
       if (!res.ok) {
-        throw new Error('Failed to delete question')
+        throw new Error("Failed to delete question");
       }
 
-      setQuestions(questions.filter((q) => q.id !== questionId))
-      setShowDeleteConfirm(false)
-      setSelectedQuestion(null)
+      setQuestions(questions.filter((q) => q.id !== questionId));
+      setShowDeleteConfirm(false);
+      setSelectedQuestion(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete question')
+      alert(err instanceof Error ? err.message : "Failed to delete question");
     }
   }
 
   function confirmDelete(question: Question) {
-    setSelectedQuestion(question)
-    setShowDeleteConfirm(true)
+    setSelectedQuestion(question);
+    setShowDeleteConfirm(true);
   }
 
   if (loading) {
@@ -85,7 +87,7 @@ export default function AdminQuestionsPage() {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <p className="text-gray-600">Loading questions...</p>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -99,7 +101,7 @@ export default function AdminQuestionsPage() {
           Retry
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -155,11 +157,11 @@ export default function AdminQuestionsPage() {
                   </h3>
                   <div className="text-sm text-gray-600 space-y-1">
                     <p>
-                      <span className="font-medium">Source:</span>{' '}
+                      <span className="font-medium">Source:</span>{" "}
                       {question.source}
                     </p>
                     <p>
-                      <span className="font-medium">Created:</span>{' '}
+                      <span className="font-medium">Created:</span>{" "}
                       {new Date(question.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -202,8 +204,8 @@ export default function AdminQuestionsPage() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
-                  setShowDeleteConfirm(false)
-                  setSelectedQuestion(null)
+                  setShowDeleteConfirm(false);
+                  setSelectedQuestion(null);
                 }}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
               >
@@ -220,5 +222,5 @@ export default function AdminQuestionsPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

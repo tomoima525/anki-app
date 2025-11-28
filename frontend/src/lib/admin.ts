@@ -21,7 +21,8 @@ async function getCurrentUserServer(): Promise<User | null> {
       return null;
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
+    const apiUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
     const response = await fetch(`${apiUrl}/api/users/me`, {
       headers: {
         Cookie: `${sessionCookie.name}=${sessionCookie.value}`,

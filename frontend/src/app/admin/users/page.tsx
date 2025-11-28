@@ -1,57 +1,57 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 
 interface User {
-  id: string
-  email: string
-  name: string
-  picture?: string
-  google_id?: string
-  is_admin?: boolean | number
-  created_at: string
-  last_login_at: string
+  id: string;
+  email: string;
+  name: string;
+  picture?: string;
+  google_id?: string;
+  is_admin?: boolean | number;
+  created_at: string;
+  last_login_at: string;
 }
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     total: 0,
     limit: 50,
     offset: 0,
     hasMore: false,
-  })
+  });
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
+  const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
   useEffect(() => {
-    fetchUsers()
-  }, [pagination.offset])
+    fetchUsers();
+  }, [pagination.offset]);
 
   async function fetchUsers() {
     try {
-      setLoading(true)
+      setLoading(true);
       const res = await fetch(
         `${apiUrl}/api/users?limit=${pagination.limit}&offset=${pagination.offset}`,
         {
-          credentials: 'include',
+          credentials: "include",
         }
-      )
+      );
 
       if (!res.ok) {
-        throw new Error('Failed to fetch users')
+        throw new Error("Failed to fetch users");
       }
 
-      const data = await res.json()
-      setUsers(data.users || [])
-      setPagination(data.pagination)
-      setError(null)
+      const data = await res.json();
+      setUsers(data.users || []);
+      setPagination(data.pagination);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load users')
+      setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -60,7 +60,7 @@ export default function AdminUsersPage() {
       setPagination((prev) => ({
         ...prev,
         offset: prev.offset + prev.limit,
-      }))
+      }));
     }
   }
 
@@ -69,12 +69,12 @@ export default function AdminUsersPage() {
       setPagination((prev) => ({
         ...prev,
         offset: Math.max(0, prev.offset - prev.limit),
-      }))
+      }));
     }
   }
 
   function isAdmin(user: User): boolean {
-    return user.is_admin === true || user.is_admin === 1
+    return user.is_admin === true || user.is_admin === 1;
   }
 
   if (loading && users.length === 0) {
@@ -82,7 +82,7 @@ export default function AdminUsersPage() {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <p className="text-gray-600">Loading users...</p>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -96,7 +96,7 @@ export default function AdminUsersPage() {
           Retry
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -172,11 +172,11 @@ export default function AdminUsersPage() {
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         isAdmin(user)
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-gray-100 text-gray-800'
+                          ? "bg-purple-100 text-purple-800"
+                          : "bg-gray-100 text-gray-800"
                       }`}
                     >
-                      {isAdmin(user) ? 'Admin' : 'User'}
+                      {isAdmin(user) ? "Admin" : "User"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -194,8 +194,8 @@ export default function AdminUsersPage() {
         {/* Pagination */}
         <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
           <div className="text-sm text-gray-700">
-            Showing {pagination.offset + 1} to{' '}
-            {Math.min(pagination.offset + pagination.limit, pagination.total)}{' '}
+            Showing {pagination.offset + 1} to{" "}
+            {Math.min(pagination.offset + pagination.limit, pagination.total)}{" "}
             of {pagination.total} users
           </div>
           <div className="flex gap-2">
@@ -217,5 +217,5 @@ export default function AdminUsersPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
