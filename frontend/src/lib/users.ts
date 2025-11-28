@@ -25,19 +25,31 @@ const getApiBaseUrl = () => {
 };
 
 /**
+ * Result of creating a user from Google OAuth, including session token
+ */
+export interface CreateUserResult {
+  user: User;
+  created: boolean;
+  /** Session token for cross-origin cookie setup */
+  sessionToken: string;
+  /** Set-Cookie headers from backend (for same-origin scenarios) */
+  setCookieHeaders: string[];
+}
+
+/**
  * Create a new user from Google OAuth data
  * @param googleId - Google user ID (sub claim)
  * @param email - User's email
  * @param name - User's display name
  * @param picture - User's profile picture URL (optional)
- * @returns Created or updated user
+ * @returns Created or updated user with Set-Cookie headers to forward
  */
 export async function createUserFromGoogle(
   googleId: string,
   email: string,
   name: string,
   picture?: string
-): Promise<User> {
+): Promise<CreateUserResult> {
   // Let the backend generate the user ID
   const response = await fetch(`${getApiBaseUrl()}/api/users`, {
     method: "POST",
@@ -61,7 +73,30 @@ export async function createUserFromGoogle(
     );
   }
 
-  const data = (await response.json()) as { user: User; created: boolean };
+  // Capture Set-Cookie headers from backend response to forward to browser
+  // These headers contain the session cookie set by the backend
+  const setCookieHeaders: string[] = [];
+  const setCookieHeader = response.headers.get("set-cookie");
+  if (setCookieHeader) {
+    // Handle multiple Set-Cookie headers (getSetCookie is not available in all environments)
+    setCookieHeaders.push(setCookieHeader);
+  }
+  // Also try to get all set-cookie headers via getSetCookie if available
+  if (typeof (response.headers as any).getSetCookie === "function") {
+    const allCookies = (response.headers as any).getSetCookie();
+    if (Array.isArray(allCookies) && allCookies.length > 0) {
+      setCookieHeaders.length = 0; // Clear and use the more complete list
+      setCookieHeaders.push(...allCookies);
+    }
+  }
+
+  console.log("Backend Set-Cookie headers:", setCookieHeaders);
+
+  const data = (await response.json()) as {
+    user: User;
+    created: boolean;
+    sessionToken?: string;
+  };
   console.log("Backend returned user:", JSON.stringify(data.user, null, 2));
 
   // Ensure the user has an ID
@@ -70,7 +105,18 @@ export async function createUserFromGoogle(
     throw new Error("Backend returned user without ID");
   }
 
-  return data.user;
+  // Ensure session token is present (needed for cross-origin cookie setup)
+  if (!data.sessionToken) {
+    console.error("Backend returned no session token:", data);
+    throw new Error("Backend returned no session token");
+  }
+
+  return {
+    user: data.user,
+    created: data.created,
+    sessionToken: data.sessionToken,
+    setCookieHeaders,
+  };
 }
 
 /**
