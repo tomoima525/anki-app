@@ -17,7 +17,7 @@ GOOGLE_CLIENT_ID="494913230082-44coq05pq6cn0hs5sdshkksm48lbqtjb.apps.googleuserc
 
 [observability]
 [observability.logs]
-enabled = false
+enabled = true
 head_sampling_rate = 1
 invocation_logs = true
 persist = true
