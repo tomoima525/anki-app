@@ -223,11 +223,12 @@ app.get("/api/study/sources", authMiddleware, async (c) => {
 
     const result = await db
       .prepare(
-        `SELECT DISTINCT source
+        `SELECT DISTINCT source_name
          FROM questions
-         ORDER BY source`
+         WHERE source_name IS NOT NULL
+         ORDER BY source_name`
       )
-      .all<{ source: string }>();
+      .all<{ source_name: string }>();
 
     return c.json({
       sources: result.results || [],
@@ -241,21 +242,21 @@ app.get("/api/study/sources", authMiddleware, async (c) => {
 /**
  * POST /api/study/next
  * Get a random question (without answer)
- * Accepts optional 'source' query parameter to filter by source
+ * Accepts optional 'source_name' query parameter to filter by source name
  * Requires authentication
  */
 app.post("/api/study/next", authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
-    const source = c.req.query("source");
+    const sourceName = c.req.query("source_name");
 
-    // Build query based on whether source filter is provided
-    let query = `SELECT id, question_text, source FROM questions`;
+    // Build query based on whether source_name filter is provided
+    let query = `SELECT id, question_text, source, source_name FROM questions`;
     const bindings: string[] = [];
 
-    if (source) {
-      query += ` WHERE source = ?`;
-      bindings.push(source);
+    if (sourceName) {
+      query += ` WHERE source_name = ?`;
+      bindings.push(sourceName);
     }
 
     query += ` ORDER BY RANDOM() LIMIT 1`;
@@ -263,7 +264,7 @@ app.post("/api/study/next", authMiddleware, async (c) => {
     const question = await db
       .prepare(query)
       .bind(...bindings)
-      .first<{ id: string; question_text: string; source: string }>();
+      .first<{ id: string; question_text: string; source: string; source_name: string }>();
 
     if (!question) {
       return c.json(
@@ -276,6 +277,7 @@ app.post("/api/study/next", authMiddleware, async (c) => {
       id: question.id,
       question: question.question_text,
       source: question.source,
+      source_name: question.source_name,
     });
   } catch (error) {
     console.error("Get next question error:", error);
@@ -295,7 +297,7 @@ app.get("/api/study/:id", authMiddleware, async (c) => {
 
     const question = await db
       .prepare(
-        `SELECT id, question_text, answer_text, source
+        `SELECT id, question_text, answer_text, source, source_name
          FROM questions
          WHERE id = ?`
       )
@@ -305,6 +307,7 @@ app.get("/api/study/:id", authMiddleware, async (c) => {
         question_text: string;
         answer_text: string;
         source: string;
+        source_name: string;
       }>();
 
     if (!question) {
@@ -316,6 +319,7 @@ app.get("/api/study/:id", authMiddleware, async (c) => {
       question: question.question_text,
       answer: question.answer_text,
       source: question.source,
+      source_name: question.source_name,
     });
   } catch (error) {
     console.error("Get question error:", error);
