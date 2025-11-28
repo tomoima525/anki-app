@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-A spaced repetition application for practicing interview questions, built as a full-stack application deployed on Cloudflare. The app helps users prepare for technical interviews using spaced repetition techniques, allowing them to import questions from GitHub, study them systematically, and track progress over time.
+A spaced repetition application for practicing interview questions, built as a full-stack application. The app helps users prepare for technical interviews using spaced repetition techniques, allowing them to import questions from GitHub, study them systematically, and track progress over time.
 
 ## Architecture
 
 This is a **monorepo** with two main packages:
 
-- **Frontend**: Next.js 15 application deployed on Cloudflare Pages
+- **Frontend**: Next.js 15 application deployed on Vercel
 - **Backend**: Cloudflare Workers API with D1 (SQLite) database
 
 ```
@@ -28,7 +28,7 @@ anki-interview-app/
 - **Styling**: Tailwind CSS 4
 - **Authentication**: JWT with HTTP-only cookies (using `jose` library)
 - **Password Hashing**: bcrypt
-- **Deployment**: Cloudflare Pages (using `@cloudflare/next-on-pages`)
+- **Deployment**: Vercel (Global Edge Network)
 - **Language**: TypeScript
 
 ### Backend
@@ -76,11 +76,8 @@ pnpm dev
 # Build for production
 pnpm build
 
-# Build for Cloudflare Pages
-pnpm pages:build
-
-# Preview Cloudflare Pages build
-pnpm preview
+# Start production server locally
+pnpm start
 
 # Lint
 pnpm lint
@@ -161,8 +158,9 @@ Migration files are in `backend/db/migrations/`. Always create new migrations fo
 
 ## Environment Variables
 
-### Frontend (`frontend/.env.local`)
+### Frontend
 
+For **local development**, create `frontend/.env.local`:
 ```env
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_ID=your-google-client-id
@@ -170,7 +168,19 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 SESSION_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 SESSION_COOKIE_NAME=anki_session
 SESSION_MAX_AGE=604800
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8787
 ```
+
+For **production**, set these via Vercel Dashboard:
+- `SESSION_SECRET` (sensitive)
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET` (sensitive)
+- `NEXT_PUBLIC_BACKEND_URL`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+- `SESSION_COOKIE_NAME`
+- `SESSION_MAX_AGE`
+
+Note: `frontend/.env.production` contains production defaults (non-sensitive values)
 
 ### Backend
 
@@ -239,13 +249,24 @@ Detailed specifications are in the `specs/` directory:
 
 - Frontend: Run `pnpm dev` in frontend directory
 - Backend: Run `pnpm dev` in backend directory
-- Test locally before deploying to Cloudflare
+- Test locally before deploying
 
 ## Deployment
 
-- **Frontend**: Deploy via Cloudflare Pages (`wrangler pages deploy`)
-- **Backend**: Deploy via Wrangler (`wrangler deploy`)
-- Both are configured for Cloudflare's edge network
+### Frontend (Vercel)
+The frontend is deployed to Vercel using GitHub integration:
+1. Connect repository to Vercel via [vercel.com](https://vercel.com)
+2. Select `frontend` directory as root directory
+3. Configure environment variables in Vercel Dashboard
+4. Deploy automatically on push to main branch
+5. Preview deployments created for all pull requests
+
+Configuration in `frontend/vercel.json` and `frontend/.env.production`
+
+### Backend (Cloudflare Workers)
+The backend is deployed to Cloudflare Workers:
+- Deploy via Wrangler: `pnpm deploy` (from backend directory)
+- Configure secrets via `wrangler secret put`
 
 ## Before Committing
 

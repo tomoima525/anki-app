@@ -31,31 +31,32 @@ users.post("/", async (c) => {
   try {
     const db = c.env.DB;
     const body = await c.req.json<{
-      id: string;
+      id?: string;
       email: string;
       name: string;
       picture?: string;
       googleId?: string;
     }>();
 
-    const { id, email, name, picture, googleId } = body;
+    const { email, name, picture, googleId } = body;
 
     // Validate required fields
-    if (!id || !email || !name) {
+    if (!email || !name) {
       return c.json(
-        { error: "Missing required fields: id, email, name" },
+        { error: "Missing required fields: email, name" },
         400
       );
     }
 
     const now = new Date().toISOString();
 
-    // Check if user already exists
+    // Check if user already exists (by email or google_id)
     const existingUser = await db
       .prepare(
-        `SELECT id FROM users WHERE id = ? OR email = ? OR google_id = ?`
+        `SELECT id, email, name, picture, google_id, is_admin, created_at, last_login_at
+         FROM users WHERE email = ? OR (google_id IS NOT NULL AND google_id = ?)`
       )
-      .bind(id, email, googleId || null)
+      .bind(email, googleId || null)
       .first();
 
     if (existingUser) {
@@ -66,7 +67,7 @@ users.post("/", async (c) => {
            SET last_login_at = ?, name = ?, picture = ?
            WHERE id = ?`
         )
-        .bind(now, name, picture || null, id)
+        .bind(now, name, picture || null, existingUser.id)
         .run();
 
       const updatedUser = await db
@@ -74,7 +75,7 @@ users.post("/", async (c) => {
           `SELECT id, email, name, picture, google_id, is_admin, created_at, last_login_at
            FROM users WHERE id = ?`
         )
-        .bind(id)
+        .bind(existingUser.id)
         .first();
 
       return c.json({
@@ -83,13 +84,16 @@ users.post("/", async (c) => {
       });
     }
 
+    // Generate a new user ID using crypto.randomUUID()
+    const userId = crypto.randomUUID();
+
     // Create new user
     await db
       .prepare(
         `INSERT INTO users (id, email, name, picture, google_id, is_admin, created_at, last_login_at)
          VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
       )
-      .bind(id, email, name, picture || null, googleId || null, now, now)
+      .bind(userId, email, name, picture || null, googleId || null, now, now)
       .run();
 
     const newUser = await db
@@ -97,7 +101,7 @@ users.post("/", async (c) => {
         `SELECT id, email, name, picture, google_id, is_admin, created_at, last_login_at
          FROM users WHERE id = ?`
       )
-      .bind(id)
+      .bind(userId)
       .first();
 
     return c.json(
