@@ -98,7 +98,17 @@ export async function authMiddleware(c: Context, next: Next) {
 
   // Get token from cookie
   const token = getCookie(c, cookieName);
-  console.log("token", token);
+
+  // Debug logging
+  const cookieHeader = c.req.header("Cookie");
+  console.log("Auth middleware debug:", {
+    url: c.req.url,
+    cookieName,
+    cookieHeader,
+    token: token ? "present" : "null",
+    allHeaders: Object.fromEntries(c.req.raw.headers.entries()),
+  });
+
   if (!token) {
     return c.json({ error: "Unauthorized - No session token" }, 401);
   }

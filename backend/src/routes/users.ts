@@ -142,6 +142,12 @@ users.post("/", async (c) => {
       const cookieConfig = getCookieConfig(c.req.url);
       setCookie(c, "anki_session", sessionToken, cookieConfig);
 
+      console.log("Cookie set for existing user:", {
+        url: c.req.url,
+        cookieConfig,
+        userId: existingUser.id,
+      });
+
       return c.json({
         user: updatedUser,
         created: false,
@@ -179,6 +185,12 @@ users.post("/", async (c) => {
     // Set cookie with environment-appropriate configuration
     const cookieConfig = getCookieConfig(c.req.url);
     setCookie(c, "anki_session", sessionToken, cookieConfig);
+
+    console.log("Cookie set for new user:", {
+      url: c.req.url,
+      cookieConfig,
+      userId,
+    });
 
     return c.json(
       {
