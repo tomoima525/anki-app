@@ -799,8 +799,8 @@ app.post("/api/sync/github", authMiddleware, adminMiddleware, async (c) => {
         let questions;
 
         if (hasAnswers) {
-          // Parse Q&A directly from markdown
-          questions = parsePrewrittenQA(content);
+          // Parse Q&A directly from markdown with LLM
+          questions = await parsePrewrittenQA(content, apiKey, model);
         } else {
           // Parse with OpenAI
           questions = await parseQuestionsInChunks(content, apiKey, model);

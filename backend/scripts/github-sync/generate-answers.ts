@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { parseQuestionsInChunks } from "../../src/lib/openai-parser";
 import { readFileSync, writeFileSync, readdirSync } from "fs";
 import { join } from "path";

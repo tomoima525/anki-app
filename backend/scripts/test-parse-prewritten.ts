@@ -5,6 +5,7 @@
  * - JavaScript Interview Questions (has pre-written answers)
  */
 
+import "dotenv/config";
 import {
   hasPrewrittenAnswers,
   hasPrewrittenAnswersWithAI,
@@ -126,39 +127,58 @@ async function runTests() {
     console.log("2. Skipping AI-based detection (OPENAI_API_KEY not set)\n");
   }
 
-  // Test 3: Parse Q&A from JavaScript questions
-  console.log("3. Testing parsePrewrittenQA on JavaScript questions:");
-  const parsedQuestions = parsePrewrittenQA(javascriptQuestionsWithAnswers);
-  console.log(`   ✓ Parsed ${parsedQuestions.length} questions\n`);
+  // Test 3: Parse Q&A from JavaScript questions (requires OPENAI_API_KEY)
+  if (apiKey) {
+    console.log("3. Testing parsePrewrittenQA with LLM on JavaScript questions:");
+    try {
+      const parsedQuestions = await parsePrewrittenQA(
+        javascriptQuestionsWithAnswers,
+        apiKey
+      );
+      console.log(`   ✓ Parsed ${parsedQuestions.length} questions\n`);
 
-  // Display parsed questions
-  parsedQuestions.forEach((q, i) => {
-    console.log(`   Question ${i + 1}:`);
-    console.log(`     Q: ${q.question.substring(0, 80)}...`);
-    console.log(`     A: ${q.answer.substring(0, 80)}...`);
-    console.log("");
-  });
+      // Display parsed questions
+      parsedQuestions.forEach((q, i) => {
+        console.log(`   Question ${i + 1}:`);
+        console.log(`     Q: ${q.question.substring(0, 80)}...`);
+        console.log(`     A: ${q.answer.substring(0, 80)}...`);
+        console.log("");
+      });
 
-  // Test 4: Parse Q&A from Backend questions (should return empty or partial)
-  console.log("4. Testing parsePrewrittenQA on Backend questions (no answers):");
-  const parsedBackend = parsePrewrittenQA(backendQuestionsWithoutAnswers);
-  console.log(`   ✓ Parsed ${parsedBackend.length} questions`);
-  console.log(
-    "   (Expected: 0 or few, since document has no clear answers)\n"
-  );
+      // Test 4: Parse Q&A from Backend questions (should return empty or partial)
+      console.log("4. Testing parsePrewrittenQA on Backend questions:");
+      const parsedBackend = await parsePrewrittenQA(
+        backendQuestionsWithoutAnswers,
+        apiKey
+      );
+      console.log(`   ✓ Parsed ${parsedBackend.length} questions\n`);
 
-  // Test 5: Verify question quality
-  console.log("5. Verifying parsed question quality:");
-  const hasValidQuestions = parsedQuestions.every(
-    (q) => q.question && q.question.length > 10 && q.answer && q.answer.length > 10
-  );
-  console.log(`   All questions have valid Q&A: ${hasValidQuestions ? "✓" : "✗"}`);
+      // Test 5: Verify question quality
+      console.log("5. Verifying parsed question quality:");
+      const hasValidQuestions = parsedQuestions.every(
+        (q) =>
+          q.question &&
+          q.question.length > 10 &&
+          q.answer &&
+          q.answer.length > 10
+      );
+      console.log(
+        `   All questions have valid Q&A: ${hasValidQuestions ? "✓" : "✗"}`
+      );
 
-  // Test 6: Check for code block preservation
-  const hasCodeBlocks = parsedQuestions.some((q) =>
-    q.answer.includes("```")
-  );
-  console.log(`   Code blocks preserved: ${hasCodeBlocks ? "✓" : "✗"}`);
+      // Test 6: Check for code block preservation
+      const hasCodeBlocks = parsedQuestions.some((q) =>
+        q.answer.includes("```")
+      );
+      console.log(`   Code blocks preserved: ${hasCodeBlocks ? "✓" : "✗"}`);
+    } catch (error) {
+      console.log("   ✗ Parsing failed:", error);
+    }
+  } else {
+    console.log(
+      "3-6. Skipping parsePrewrittenQA tests (OPENAI_API_KEY not set)"
+    );
+  }
 
   console.log("\n=== Test Complete ===");
 }

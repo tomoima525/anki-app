@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { fetchMarkdownFromGitHub } from "../../src/lib/github";
 import {
   hasPrewrittenAnswersWithAI,
@@ -65,8 +66,8 @@ async function main() {
 
       if (hasAnswers) {
         // 2a. Parse Q&A directly from markdown
-        console.log("  ✓ Pre-written answers detected, parsing directly...");
-        const parsedQA = parsePrewrittenQA(content);
+        console.log("  ✓ Pre-written answers detected, parsing with LLM...");
+        const parsedQA = await parsePrewrittenQA(content, apiKey, model);
 
         questions = parsedQA.map((qa) => ({
           content: qa.question,
@@ -80,11 +81,10 @@ async function main() {
       } else {
         // 2b. Questions only - answers will be generated separately
         console.log(
-          "  ✓ No pre-written answers found, parsing questions only..."
+          "  ✓ No pre-written answers found, parsing questions with LLM..."
         );
-        // For now, we'll parse the content as questions without answers
-        // You might need to adjust this based on your markdown structure
-        const parsedQA = parsePrewrittenQA(content);
+        // Parse content as questions - answers will be generated separately
+        const parsedQA = await parsePrewrittenQA(content, apiKey, model);
 
         questions = parsedQA.map((qa) => ({
           content: qa.question,

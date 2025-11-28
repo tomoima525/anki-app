@@ -26,6 +26,23 @@ Both CSV and JSON files are automatically ignored by git to prevent accidentally
 
 This workflow allows you to fetch questions from GitHub repositories, optionally generate answers with AI, review the results, and then import them to the database.
 
+### Prerequisites
+
+Before running the sync scripts, ensure you have a `.env` file in the `backend/` directory with the required environment variables:
+
+```bash
+# Copy the example file
+cd backend
+cp .env.example .env
+
+# Edit .env and add your keys:
+# - OPENAI_API_KEY: Your OpenAI API key (for AI features)
+# - GITHUB_TOKEN: Your GitHub personal access token (for fetching from private repos)
+# - OPENAI_MODEL (optional): Model to use (default: gpt-4o-mini)
+```
+
+See `backend/.env.example` for the full list of required variables.
+
 ### Step 1: Fetch and Parse Questions
 
 ```bash
@@ -82,10 +99,6 @@ pnpm --filter anki-interview-backend generate-answers
 - Uses OpenAI to generate answers for those questions
 - Updates the JSON files with generated answers
 - Updates the combined file
-
-**Environment Variables Required:**
-- `OPENAI_API_KEY`: Your OpenAI API key
-- `OPENAI_MODEL` (optional): Model to use (default: `gpt-4o-mini`)
 
 ### Step 3: Review the Data
 
@@ -173,12 +186,14 @@ export function getAllSources() {
 - Or manually add answers to the JSON files
 
 **"OPENAI_API_KEY is not set"**
-- Set environment variable: `export OPENAI_API_KEY=sk-...`
-- Or add to `.env` file in backend directory
+- Ensure you have a `.env` file in the `backend/` directory
+- Add `OPENAI_API_KEY=sk-...` to the `.env` file
+- See Prerequisites section above for setup instructions
 
 **"GITHUB_TOKEN is not set"**
-- Set environment variable: `export GITHUB_TOKEN=ghp_...`
-- Or add to `.env` file in backend directory
+- Ensure you have a `.env` file in the `backend/` directory
+- Add `GITHUB_TOKEN=ghp_...` to the `.env` file
+- See Prerequisites section above for setup instructions
 
 ---
 
@@ -224,16 +239,16 @@ id,question_id,difficulty,answered_at
 
 ```bash
 # From the backend directory
-pnpm db:import -- ../data/questions_2025-11-20.csv ../data/answer_logs_2025-11-20.csv
+pnpm db:import -- ../data/questions_2025-11-20.csv
 
 # Or from the root directory
-pnpm --filter anki-interview-backend db:import -- ../data/questions_2025-11-20.csv ../data/answer_logs_2025-11-20.csv
+pnpm --filter anki-interview-backend db:import -- ../data/questions_2025-11-20.csv
 ```
 
 ### What it does
 
-- Reads the specified CSV files
-- Converts them to SQL INSERT statements
+- Reads the specified CSV file
+- Converts it to SQL INSERT statements
 - Imports data to the **remote (production)** D1 database
 - Uses `INSERT OR REPLACE` to handle duplicates (upsert behavior)
 
@@ -260,7 +275,7 @@ This creates timestamped CSV backups of your local database.
 pnpm db:export
 
 # Step 2: Import to production
-pnpm db:import -- ../data/questions_2025-11-20T15-57-22.csv ../data/answer_logs_2025-11-20T15-57-22.csv
+pnpm db:import -- ../data/questions_2025-11-20T15-57-22.csv
 ```
 
 ### 3. Share question sets
