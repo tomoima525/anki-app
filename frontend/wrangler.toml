@@ -9,6 +9,7 @@ binding = "ASSETS"
 
 
 [vars]
+ENVIRONMENT = "production"
 SESSION_MAX_AGE = "604800"
 SESSION_COOKIE_NAME = "anki_session"
 NEXT_PUBLIC_BACKEND_URL= "https://anki-interview-app.tomoima525.workers.dev"
