@@ -173,7 +173,7 @@ export default function StudyPage() {
 
       if (response.ok) {
         // Redirect to login page
-        window.location.href = "/auth/signin";
+        window.location.href = "/login";
       }
     } catch (err) {
       console.error("Sign out error:", err);
