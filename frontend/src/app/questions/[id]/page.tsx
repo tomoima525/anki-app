@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Question, AnswerLog } from "@/types/database";
+import { getDifficultyLabel, type DifficultyValue } from "@/lib/difficultyLabels";
 
 interface QuestionDetail {
   question: Question;
@@ -131,7 +132,7 @@ export default function QuestionDetailPage() {
                     question.last_difficulty
                   )}`}
                 >
-                  {question.last_difficulty}
+                  {getDifficultyLabel(question.last_difficulty as DifficultyValue)}
                 </span>
               )}
             </div>
@@ -202,7 +203,7 @@ export default function QuestionDetailPage() {
                         log.difficulty
                       )}`}
                     >
-                      {log.difficulty}
+                      {getDifficultyLabel(log.difficulty as DifficultyValue)}
                     </span>
                     <span className="text-gray-600">
                       {formatDate(log.answered_at)}

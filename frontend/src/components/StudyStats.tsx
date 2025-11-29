@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getDifficultyLabel } from '@/lib/difficultyLabels';
 
 interface StudyStats {
   total: number;
@@ -75,15 +76,15 @@ export default function StudyStats({ onRecordAnswer }: StudyStatsProps) {
           </div>
           <div>
             <div className="text-2xl font-bold text-green-600">{stats.easy}</div>
-            <div className="text-xs text-muted-foreground">Easy</div>
+            <div className="text-xs text-muted-foreground">{getDifficultyLabel("easy")}</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-yellow-600">{stats.medium}</div>
-            <div className="text-xs text-muted-foreground">Medium</div>
+            <div className="text-xs text-muted-foreground">{getDifficultyLabel("medium")}</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-red-600">{stats.hard}</div>
-            <div className="text-xs text-muted-foreground">Hard</div>
+            <div className="text-xs text-muted-foreground">{getDifficultyLabel("hard")}</div>
           </div>
         </div>
       </CardContent>

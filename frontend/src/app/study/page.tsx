@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getDifficultyLabel } from "@/lib/difficultyLabels";
 
 interface QuestionData {
   id: string;
@@ -242,7 +243,7 @@ export default function StudyPage() {
               {!showAnswer ? (
                 <p>Press Space or Enter to show answer</p>
               ) : (
-                <p>Press 1 (Easy), 2 (Medium), or 3 (Hard)</p>
+                <p>Press 1 (Easy), 2 (Good), or 3 (Again)</p>
               )}
             </div>
 
@@ -310,21 +311,21 @@ export default function StudyPage() {
                       disabled={loading}
                       className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
-                      Easy
+                      {getDifficultyLabel("easy")}
                     </button>
                     <button
                       onClick={() => handleDifficulty("medium")}
                       disabled={loading}
                       className="px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
-                      Medium
+                      {getDifficultyLabel("medium")}
                     </button>
                     <button
                       onClick={() => handleDifficulty("hard")}
                       disabled={loading}
                       className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
-                      Hard
+                      {getDifficultyLabel("hard")}
                     </button>
                   </div>
                 </div>
