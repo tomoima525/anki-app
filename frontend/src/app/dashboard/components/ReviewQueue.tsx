@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { getDifficultyLabel } from "@/lib/difficultyLabels";
 
 interface ReviewQuestion {
   id: string;
@@ -60,7 +61,7 @@ export function ReviewQueue({ data }: ReviewQueueProps) {
                 </span>
                 {question.last_difficulty === "hard" && (
                   <Badge variant="destructive" className="text-xs">
-                    Hard
+                    {getDifficultyLabel("hard")}
                   </Badge>
                 )}
               </div>

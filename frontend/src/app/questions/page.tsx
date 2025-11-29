@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getDifficultyLabel, type DifficultyValue } from "@/lib/difficultyLabels";
 
 interface QuestionStats {
   totalQuestions: number;
@@ -245,7 +246,7 @@ export default function QuestionsPage() {
               </Card>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground">Easy</div>
+                  <div className="text-sm text-muted-foreground">{getDifficultyLabel("easy")}</div>
                   <div className="text-2xl font-bold text-green-500">
                     {stats.difficultyDistribution.easy}
                   </div>
@@ -253,7 +254,7 @@ export default function QuestionsPage() {
               </Card>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground">Medium</div>
+                  <div className="text-sm text-muted-foreground">{getDifficultyLabel("medium")}</div>
                   <div className="text-2xl font-bold text-yellow-500">
                     {stats.difficultyDistribution.medium}
                   </div>
@@ -261,7 +262,7 @@ export default function QuestionsPage() {
               </Card>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground">Hard</div>
+                  <div className="text-sm text-muted-foreground">{getDifficultyLabel("hard")}</div>
                   <div className="text-2xl font-bold text-red-500">
                     {stats.difficultyDistribution.hard}
                   </div>
@@ -297,9 +298,9 @@ export default function QuestionsPage() {
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="">All</option>
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
+                  <option value="easy">{getDifficultyLabel("easy")}</option>
+                  <option value="medium">{getDifficultyLabel("medium")}</option>
+                  <option value="hard">{getDifficultyLabel("hard")}</option>
                 </select>
               </div>
 
@@ -385,7 +386,9 @@ export default function QuestionsPage() {
                               question.last_difficulty
                             )}
                           >
-                            {question.last_difficulty || "N/A"}
+                            {question.last_difficulty
+                              ? getDifficultyLabel(question.last_difficulty as DifficultyValue)
+                              : "N/A"}
                           </Badge>
                         </td>
                         <td className="px-6 py-4">
