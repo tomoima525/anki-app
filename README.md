@@ -23,7 +23,7 @@ anki-interview-app/
 - **Framework**: Next.js 15 (App Router)
 - **Styling**: Tailwind CSS
 - **Authentication**: JWT sessions with HTTP-only cookies
-- **Deployment**: Cloudflare Workers via OpenNext.js
+- **Deployment**: Vercel
 
 ### Backend
 
@@ -162,19 +162,9 @@ pnpm db:migrate:prod
 
 ## Deployment
 
-### Frontend (Cloudflare Workers via OpenNext.js)
+### Frontend (Vercel)
 
-The frontend is deployed to Cloudflare Workers using OpenNext.js, which adapts Next.js applications for edge runtime environments.
-
-```bash
-cd frontend
-
-# Build and deploy
-pnpm deploy
-
-# Or preview locally first
-pnpm preview
-```
+The frontend is deployed to Vercel using Next.js, which adapts Next.js applications for edge runtime environments.
 
 **Prerequisites:**
 
@@ -194,10 +184,10 @@ pnpm deploy
 
 - [x] Database setup (D1)
 - [x] Authentication system
-- [ ] GitHub sync functionality
-- [ ] Study flow implementation
-- [ ] Question management UI
-- [ ] Settings and admin panel
+- [x] GitHub sync functionality
+- [x] Study flow implementation
+- [x] Question management UI
+- [x] Settings and admin panel
 
 ## Documentation
 
