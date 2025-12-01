@@ -146,11 +146,16 @@ app.get("/api/auth/set-session", async (c) => {
 
     setCookie(c, "anki_session", token, cookieOptions);
 
+    // Log the actual Set-Cookie header that will be sent
+    const setCookieHeader = c.res.headers.get("Set-Cookie");
     console.log("Session cookie set via direct browser visit:", {
       url: c.req.url,
       isLocalDev,
       cookieOptions,
       redirectUrl,
+      setCookieHeader, // This shows the actual header being sent
+      origin: c.req.header("origin"),
+      userAgent: c.req.header("user-agent"),
     });
 
     // Redirect to the specified URL or return success
@@ -180,7 +185,15 @@ app.get("/api/auth/set-session", async (c) => {
       }
     }
 
-    return c.json({ success: true, message: "Session cookie set" });
+    return c.json({
+      success: true,
+      message: "Session cookie set",
+      debug: {
+        cookieOptions,
+        setCookieHeader,
+        url: c.req.url,
+      }
+    });
   } catch (error) {
     console.error("Set session error:", error);
     return c.json({ error: "Failed to set session" }, 500);
