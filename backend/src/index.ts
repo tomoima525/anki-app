@@ -111,12 +111,8 @@ app.route("/api/users", usersRouter);
 // Session setup endpoint for cross-origin cookie setting
 /**
  * GET /api/auth/set-session
- * @deprecated This endpoint is no longer needed with the new authentication flow.
- * The frontend now sets the session cookie directly on its own domain.
- * Keeping this for backwards compatibility but it should not be used.
- * 
  * Sets the session cookie when browser visits directly
- * This was needed because cookies set in server-to-server calls don't reach the browser
+ * This is needed because cookies set in server-to-server calls don't reach the browser
  *
  * Query params:
  * - token: JWT session token
