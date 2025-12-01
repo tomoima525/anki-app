@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
 
     // Create response that redirects to backend for cookie setting
     const response = NextResponse.redirect(sessionSetupUrl.toString());
+    console.log("Cookies in response:", response.cookies.getAll());
 
     // Clear OAuth state and redirect cookies
     response.cookies.delete(stateCookieName);
