@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { verifySession, getSessionCookieConfig } from "@/lib/session";
 
 // Routes that don't require authentication
-const publicPaths = ["/login", "/api/auth/callback/google"];
+const publicPaths = ["/login", "/api/auth/callback/google", "/debug-cookies"];
 
 // Static assets and Next.js internals
 const publicPatterns = [
@@ -23,37 +23,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check session
-  const { name } = getSessionCookieConfig();
+  // NOTE: For cross-origin cookie setup (frontend on Vercel, backend on Cloudflare),
+  // we cannot check cookies in middleware because the cookie is stored on the backend domain.
+  // Instead, we rely on client-side authentication checks in protected components.
+  // The middleware now only handles redirects for completely public routes.
 
-  // debug log all cookies
-  console.log("All cookies:", request.cookies.getAll());
-
-  const token = request.cookies.get(name)?.value;
-
-  if (!token) {
-    return redirectToLogin(request);
-  }
-
-  const session = await verifySession(token);
-
-  if (!session) {
-    return redirectToLogin(request);
-  }
-
-  // Valid session - continue
+  // For now, allow all requests through and let components handle auth
+  // This is temporary until we implement a proper cross-origin auth solution
   return NextResponse.next();
-}
-
-function redirectToLogin(request: NextRequest) {
-  const loginUrl = new URL("/login", request.url);
-
-  // Preserve original destination for redirect after login
-  if (request.nextUrl.pathname !== "/") {
-    loginUrl.searchParams.set("from", request.nextUrl.pathname);
-  }
-
-  return NextResponse.redirect(loginUrl);
 }
 
 // Configure which routes use this middleware

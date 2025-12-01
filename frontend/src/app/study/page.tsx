@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getDifficultyLabel } from "@/lib/difficultyLabels";
+import AuthGuard from "@/components/AuthGuard";
 
 interface QuestionData {
   id: string;
@@ -184,8 +185,9 @@ export default function StudyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-3xl mx-auto px-4">
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-3xl mx-auto px-4">
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Study Session</h1>
@@ -335,5 +337,6 @@ export default function StudyPage() {
         ) : null}
       </div>
     </div>
+    </AuthGuard>
   );
 }
