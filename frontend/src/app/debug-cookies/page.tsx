@@ -73,7 +73,8 @@ export default function DebugCookiesPage() {
   const testDirectCookieSet = () => {
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
-    // Open in new window to see if redirect works
+    // NOTE: This uses the deprecated /api/auth/set-session endpoint
+    // The actual auth flow now sets cookies directly on the frontend domain
     const testToken = "test-token-replace-with-real";
     const redirectUrl = `${window.location.origin}/debug-cookies`;
     window.location.href = `${backendUrl}/api/auth/set-session?token=${testToken}&redirect=${redirectUrl}`;

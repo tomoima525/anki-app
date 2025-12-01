@@ -26,9 +26,6 @@ export async function middleware(request: NextRequest) {
   // Check session
   const { name } = getSessionCookieConfig();
 
-  // debug log all cookies
-  console.log("All cookies:", request.cookies.getAll());
-
   const token = request.cookies.get(name)?.value;
 
   if (!token) {
