@@ -96,17 +96,33 @@ export async function authMiddleware(c: Context, next: Next) {
     return c.json({ error: "Authentication not configured" }, 500);
   }
 
-  // Get token from cookie
-  const token = getCookie(c, cookieName);
+  // Get token from cookie OR Authorization header
+  // Cookie: for same-domain requests or old flow
+  // Authorization header: for cross-domain API requests (frontend -> backend)
+  let token = getCookie(c, cookieName);
+
+  if (!token) {
+    // Try to get token from Authorization header (Bearer token)
+    const authHeader = c.req.header("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
+    }
+  }
 
   // Debug logging
   const cookieHeader = c.req.header("Cookie");
+  const authHeader = c.req.header("Authorization");
   console.log("Auth middleware debug:", {
     url: c.req.url,
     cookieName,
     cookieHeader,
+    authHeader: authHeader ? "present" : "null",
     token: token ? "present" : "null",
-    allHeaders: Object.fromEntries(c.req.raw.headers.entries()),
+    tokenSource: getCookie(c, cookieName)
+      ? "cookie"
+      : authHeader
+        ? "header"
+        : "none",
   });
 
   if (!token) {
@@ -165,7 +181,15 @@ export async function optionalAuthMiddleware(c: Context, next: Next) {
     return;
   }
 
-  const token = getCookie(c, cookieName);
+  // Get token from cookie OR Authorization header
+  let token = getCookie(c, cookieName);
+
+  if (!token) {
+    const authHeader = c.req.header("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
+    }
+  }
 
   if (token) {
     const payload = await verifyToken(token, sessionSecret);
