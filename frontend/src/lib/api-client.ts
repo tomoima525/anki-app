@@ -46,7 +46,7 @@ export function createAuthenticatedFetchOptions(
 
   // Add Authorization header if token exists
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
 
   return {
