@@ -83,11 +83,7 @@ app.use(
         }
       }
 
-      // If no origin header (e.g., during redirects),
-      // default to production frontend URL
-      // The browser redirect flow doesn't send Origin header,
-      // so we allow the known frontend origin
-      return "https://anki-app-frontend.vercel.app";
+      return "*"; // allow all origins
     },
     allowHeaders: [
       "Origin",
