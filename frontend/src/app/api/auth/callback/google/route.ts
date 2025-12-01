@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Create or update user in backend database
-    // Backend returns session token that we'll use to set cookie via redirect
+    // Backend returns session token that we'll set as a cookie on the frontend domain
     let result;
     try {
       result = await createUserFromGoogle(
@@ -92,26 +92,27 @@ export async function GET(request: NextRequest) {
     const redirectTo =
       request.cookies.get(redirectCookieName)?.value || "/study";
 
-    // Build final redirect URL (frontend destination after session is set)
-    const finalRedirectUrl = new URL(redirectTo, request.url).toString();
+    // Build final redirect URL
+    const finalRedirectUrl = new URL(redirectTo, request.url);
 
-    // Build backend session-setting URL
-    // This redirects the browser to the backend, which sets the cookie and redirects back
-    const backendUrl =
-      process.env.BACKEND_URL ||
-      process.env.NEXT_PUBLIC_BACKEND_URL ||
-      "http://localhost:8787";
-    const sessionSetupUrl = new URL(`${backendUrl}/api/auth/set-session`);
-    sessionSetupUrl.searchParams.set("token", result.sessionToken);
-    sessionSetupUrl.searchParams.set("redirect", finalRedirectUrl);
-
-    console.log("Redirecting to backend for session setup:", {
-      sessionSetupUrl: sessionSetupUrl.toString(),
-      finalRedirectUrl,
+    console.log("Setting session cookie on frontend domain:", {
+      redirectTo,
+      hasToken: !!result.sessionToken,
     });
 
-    // Create response that redirects to backend for cookie setting
-    const response = NextResponse.redirect(sessionSetupUrl.toString());
+    // Create response with redirect to final destination
+    const response = NextResponse.redirect(finalRedirectUrl);
+
+    // Set session cookie on the FRONTEND domain
+    // This allows the middleware to read it directly
+    const isProduction = process.env.NODE_ENV === "production";
+    response.cookies.set("anki_session", result.sessionToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 604800, // 7 days (same as backend)
+      path: "/",
+    });
 
     // Clear OAuth state and redirect cookies
     response.cookies.delete(stateCookieName);
