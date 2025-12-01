@@ -112,7 +112,7 @@ users.post("/", async (c) => {
       return c.json({
         user: updatedUser,
         created: false,
-        sessionToken, // Token that frontend will set as a cookie on its own domain
+        sessionToken, // Token for cross-origin session setup via /api/auth/set-session
       });
     }
 
@@ -152,7 +152,7 @@ users.post("/", async (c) => {
       {
         user: newUser,
         created: true,
-        sessionToken, // Token that frontend will set as a cookie on its own domain
+        sessionToken, // Token for cross-origin session setup via /api/auth/set-session
       },
       201
     );
