@@ -60,14 +60,34 @@ app.use(
   "/*",
   cors({
     origin: (origin) => {
-      // Allow localhost for development and production URLs
-      if (
-        origin.startsWith("http://localhost:") ||
-        origin.startsWith("https://")
-      ) {
-        return origin;
+      // List of allowed origins
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "https://anki-app-frontend.vercel.app",
+      ];
+
+      // If origin header is present, validate it
+      if (origin) {
+        // Allow localhost with any port for development
+        if (origin.startsWith("http://localhost:")) {
+          return origin;
+        }
+        // Allow all HTTPS origins (for production)
+        // This is safe because we validate redirect URLs in /set-session
+        if (origin.startsWith("https://")) {
+          return origin;
+        }
+        // Check against allowed origins
+        if (allowedOrigins.includes(origin)) {
+          return origin;
+        }
       }
-      return "http://localhost:3000"; // default
+
+      // If no origin header (e.g., during redirects),
+      // default to production frontend URL
+      // The browser redirect flow doesn't send Origin header,
+      // so we allow the known frontend origin
+      return ["https://anki-app-frontend.vercel.app", "http://localhost:3000"];
     },
     allowHeaders: [
       "Origin",
@@ -155,7 +175,10 @@ app.get("/api/auth/set-session", async (c) => {
       redirectUrl,
       setCookieHeader, // This shows the actual header being sent
       origin: c.req.header("origin"),
+      referer: c.req.header("referer"),
       userAgent: c.req.header("user-agent"),
+      // Also log the CORS header that will be sent
+      corsAllowOrigin: c.res.headers.get("Access-Control-Allow-Origin"),
     });
 
     // Redirect to the specified URL or return success
@@ -192,7 +215,7 @@ app.get("/api/auth/set-session", async (c) => {
         cookieOptions,
         setCookieHeader,
         url: c.req.url,
-      }
+      },
     });
   } catch (error) {
     console.error("Set session error:", error);
@@ -277,7 +300,12 @@ app.post("/api/study/next", authMiddleware, async (c) => {
     const question = await db
       .prepare(query)
       .bind(...bindings)
-      .first<{ id: string; question_text: string; source: string; source_name: string }>();
+      .first<{
+        id: string;
+        question_text: string;
+        source: string;
+        source_name: string;
+      }>();
 
     if (!question) {
       return c.json(
