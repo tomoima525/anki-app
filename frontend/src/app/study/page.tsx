@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { getDifficultyLabel } from "@/lib/difficultyLabels";
-import { authenticatedFetch } from "@/lib/api-client";
 
 interface QuestionData {
   id: string;
@@ -59,18 +58,16 @@ export default function StudyPage() {
     try {
       const backendUrl =
         process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
-      const response = await authenticatedFetch(
-        `${backendUrl}/api/study/sources`
-      );
+      const response = await fetch(`${backendUrl}/api/study/sources`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         throw new Error("Failed to load sources");
       }
 
       const data = await response.json();
-      setSources(
-        data.sources.map((s: { source_name: string }) => s.source_name)
-      );
+      setSources(data.sources.map((s: { source_name: string }) => s.source_name));
     } catch (err) {
       console.error("Load sources error:", err);
     }
