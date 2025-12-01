@@ -49,9 +49,11 @@ cd backend
 cat > .dev.vars << EOF
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-SESSION_SECRET=1238444b8eea019baaf3c1a71845a5d042a8a5adbb787a7d49ba60e9223b680d
+SESSION_SECRET=$(openssl rand -hex 32)
 EOF
 ```
+
+> **Note:** The `SESSION_SECRET` must be at least 32 characters long. The command above generates a secure random secret automatically.
 
 ## 3. Set Up Database
 
