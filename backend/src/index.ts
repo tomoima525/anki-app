@@ -83,7 +83,7 @@ app.use(
         }
       }
 
-      return "*"; // allow all origins
+      return "https://anki-app-frontend.vercel.app"; // allow only the frontend origin
     },
     allowHeaders: [
       "Origin",
