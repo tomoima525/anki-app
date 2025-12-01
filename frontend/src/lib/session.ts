@@ -46,8 +46,11 @@ export async function verifySession(
 
     const { payload } = await jwtVerify(token, secret);
 
+    console.log("JWT verification successful:", payload);
+
     return payload as unknown as SessionPayload;
   } catch (error) {
+    console.error("JWT verification failed:", error);
     return null;
   }
 }
