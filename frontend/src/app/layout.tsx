@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Providers } from "@/components/Providers";
 
 export const metadata = {
   title: "Anki Interview App",
@@ -13,7 +14,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="flex min-h-screen flex-col">
-        <main className="flex-1">{children}</main>
+        <Providers>
+          <main className="flex-1">{children}</main>
         <footer className="border-t border-gray-200 bg-gray-50 py-3 text-center text-xs text-gray-600">
           <div className="flex flex-col items-center gap-2">
             <div>
@@ -51,6 +53,7 @@ export default function RootLayout({
             </a>
           </div>
         </footer>
+        </Providers>
       </body>
     </html>
   );
