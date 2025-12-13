@@ -1,45 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-
-const getBackendUrl = () => {
-  return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
-};
+import { useSession } from "@/contexts/SessionContext";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { user, isLoading, error } = useSession();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch(`${getBackendUrl()}/api/users/me`, {
-          credentials: "include",
-        });
-
-        if (response.ok) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-          // Redirect to login with current path for redirect after login
-          const loginUrl = `/login${pathname !== "/" ? `?from=${pathname}` : ""}`;
-          router.push(loginUrl);
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error);
-        setIsAuthenticated(false);
-        const loginUrl = `/login${pathname !== "/" ? `?from=${pathname}` : ""}`;
-        router.push(loginUrl);
-      }
-    };
-
-    checkAuth();
-  }, [router, pathname]);
+    // Once loading is complete and there's no user, redirect to login
+    if (!isLoading && !user) {
+      const loginUrl = `/login${pathname !== "/" ? `?from=${pathname}` : ""}`;
+      router.push(loginUrl);
+    }
+  }, [isLoading, user, router, pathname]);
 
   // Show loading state while checking auth
-  if (isAuthenticated === null) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -51,5 +30,5 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Show children only if authenticated
-  return isAuthenticated ? <>{children}</> : null;
+  return user ? <>{children}</> : null;
 }

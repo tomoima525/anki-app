@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getDifficultyLabel, type DifficultyValue } from "@/lib/difficultyLabels";
+import AuthGuard from "@/components/AuthGuard";
 
 interface QuestionStats {
   totalQuestions: number;
@@ -29,6 +30,14 @@ interface PaginationInfo {
 }
 
 export default function QuestionsPage() {
+  return (
+    <AuthGuard>
+      <QuestionsPageContent />
+    </AuthGuard>
+  );
+}
+
+function QuestionsPageContent() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [stats, setStats] = useState<QuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
