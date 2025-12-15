@@ -5,9 +5,18 @@ import { DailyStatsCards } from "./components/DailyStatsCards";
 import { ActivityChart } from "./components/ActivityChart";
 import { MasteryProgress } from "./components/MasteryProgress";
 import { ReviewQueue } from "./components/ReviewQueue";
+import AuthGuard from "@/components/AuthGuard";
 import Link from "next/link";
 
 export default function DashboardPage() {
+  return (
+    <AuthGuard>
+      <DashboardPageContent />
+    </AuthGuard>
+  );
+}
+
+function DashboardPageContent() {
   const {
     dailyStats,
     activityTrend,

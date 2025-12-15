@@ -1,54 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  picture?: string;
-  google_id?: string;
-  is_admin: boolean;
-  created_at: string;
-  last_login_at: string;
-}
+import AuthGuard from "@/components/AuthGuard";
+import { useSession } from "@/contexts/SessionContext";
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <AuthGuard>
+      <SettingsPageContent />
+    </AuthGuard>
+  );
+}
 
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
-
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
-
-  const loadUserProfile = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${backendUrl}/api/users/me`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to load user profile");
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-    } catch (err) {
-      setError("Failed to load user profile. Please try again.");
-      console.error("Load user profile error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+function SettingsPageContent() {
+  const { user, isLoading, error } = useSession();
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "N/A";
@@ -91,7 +57,7 @@ export default function SettingsPage() {
         )}
 
         {/* Loading State */}
-        {loading ? (
+        {isLoading ? (
           <Card>
             <CardContent className="pt-6">
               <div className="text-center py-12">
